@@ -1,0 +1,54 @@
+profile: validation
+data:
+  source: yahoo
+  tickers: ['^FTSE', '^GSPC']
+  start: '2005-01-01'
+  end: '2025-12-31'
+  frequency: weekly
+  adjusted: true
+  cache: true
+  force_refresh: false
+  min_observations: 500
+portfolio:
+  weights: [0.5, 0.5]
+  return_type: log
+  currency_mode: local_index_return
+  asset_currencies: [GBP, USD]
+  base_currency: GBP
+  allow_short: false
+risk:
+  confidence_levels: [0.95, 0.99]
+models:
+  arma_p: [0, 1, 2]
+  arma_q: [0, 1]
+  garch_orders: [[1, 1], [1, 2], [2, 1]]
+  volatility_families: [sGARCH, eGARCH]
+  distributions: [norm, std, sstd, ged]
+  information_criterion: BIC
+  diagnostic_alpha: 0.01
+  solver: hybrid
+  timeout_seconds: 90
+  refit_frequency: 20
+  reselection_frequency: 52
+  copula_families: [gaussian, student, clayton, gumbel, frank, bb1]
+simulation:
+  final_n: 20000
+  rolling_n: 5000
+  chunk_size: 5000
+  seed: 20260718
+  keep_asset_returns: false
+rolling:
+  enabled: true
+  window_type: moving
+  initial_window: 520
+  window_size: 520
+  evaluation_observations: 156
+  models: [historical, gaussian, student_t, ewma, filtered_historical]
+  checkpoint: true
+compute:
+  parallel: false
+  workers: null
+  resume: true
+report:
+  render: false
+  format: html
