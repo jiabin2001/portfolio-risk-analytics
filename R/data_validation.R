@@ -27,7 +27,8 @@ validate_prices <- function(prices, min_observations = 100L, max_stale = 10L) {
     stop(sprintf("Insufficient valid prices for: %s", paste(too_short, collapse = ", ")), call. = FALSE)
   }
   stale_by_ticker <- vapply(split(out$adjusted, out$ticker), function(x) {
-    runs <- rle(diff(x) == 0)$lengths[rle(diff(x) == 0)$values]
+    encoded <- rle(diff(x) == 0)
+    runs <- encoded$lengths[encoded$values]
     if (length(runs)) max(runs) + 1L else 1L
   }, integer(1))
   warnings <- character()

@@ -28,6 +28,8 @@ fit_native_copula <- function(u, family) {
     parameters <- list(rho = fit$minimum)
     loglik <- -fit$objective
     k <- 1L
+    convergence_code <- if (is.finite(loglik) && is.finite(parameters$rho)) 0L else 1L
+    warning <- if (convergence_code == 0L) NA_character_ else "Gaussian optimisation returned non-finite values."
   } else {
     objective <- function(theta) {
       rho <- 0.995 * tanh(theta[1]); df <- 2.01 + exp(theta[2])
@@ -37,14 +39,19 @@ fit_native_copula <- function(u, family) {
     parameters <- list(rho = 0.995 * tanh(fit$par[1]), df = 2.01 + exp(fit$par[2]))
     loglik <- -fit$value
     k <- 2L
+    convergence_code <- fit$convergence
+    warning <- if (convergence_code == 0L) NA_character_ else fit$message %||% "Student-t optimisation did not converge."
   }
+  converged <- identical(as.integer(convergence_code), 0L) && is.finite(loglik) &&
+    all(is.finite(unlist(parameters)))
   tails <- copula_tail_dependence(family, parameters)
-  list(family = family, engine = "native", status = "ok", converged = TRUE,
+  list(family = family, engine = "native", status = if (converged) "ok" else "failed",
+       converged = converged, convergence_code = convergence_code,
        parameters = parameters, loglik = loglik, aic = -2 * loglik + 2 * k,
        bic = -2 * loglik + log(nrow(u)) * k,
        kendall_tau = 2 / pi * asin(parameters$rho),
        lower_tail = unname(tails[["lower"]]), upper_tail = unname(tails[["upper"]]),
-       rotation = 0L, warning = NA_character_)
+       rotation = 0L, warning = warning)
 }
 
 #' Map readable names to VineCopula family codes
@@ -75,6 +82,17 @@ fit_vine_copula <- function(u, family) {
        warning = NA_character_)
 }
 
+#' Convert a copula fit to one comparison row
+#' @keywords internal
+copula_fit_row <- function(x) {
+  data.frame(
+    family = x$family, engine = x$engine, status = x$status, converged = x$converged,
+    loglik = x$loglik, aic = x$aic, bic = x$bic, kendall_tau = x$kendall_tau,
+    lower_tail = x$lower_tail, upper_tail = x$upper_tail, rotation = x$rotation,
+    warning = x$warning, stringsAsFactors = FALSE
+  )
+}
+
 #' Fit and select copula candidates
 #' @param u Matrix of PIT observations.
 #' @param families Candidate names.
@@ -101,22 +119,31 @@ fit_copula_candidates <- function(u, families = c("gaussian", "student", "clayto
                                 warning = conditionMessage(e)))
     value
   })
-  table <- do.call(rbind, lapply(fits, function(x) data.frame(
-    family = x$family, engine = x$engine, status = x$status, converged = x$converged,
-    loglik = x$loglik, aic = x$aic, bic = x$bic, kendall_tau = x$kendall_tau,
-    lower_tail = x$lower_tail, upper_tail = x$upper_tail, rotation = x$rotation,
-    warning = x$warning, stringsAsFactors = FALSE
-  )))
+  table <- do.call(rbind, lapply(fits, copula_fit_row))
   score <- table[[tolower(criterion)]]
   eligible <- which(table$status == "ok" & is.finite(score))
   fallback <- FALSE
   if (!length(eligible) && !use_vine) {
-    fallback_fit <- fit_native_copula(u, "gaussian")
-    fits <- c(fits, list(fallback_fit)); fallback <- TRUE
-    eligible <- length(fits)
+    fallback_fit <- tryCatch(
+      fit_native_copula(u, "gaussian"),
+      error = function(e) list(
+        family = "gaussian", engine = "native", status = "failed", converged = FALSE,
+        parameters = list(), loglik = NA_real_, aic = NA_real_, bic = NA_real_,
+        kendall_tau = NA_real_, lower_tail = NA_real_, upper_tail = NA_real_,
+        rotation = 0L, warning = conditionMessage(e)
+      )
+    )
+    fits <- c(fits, list(fallback_fit))
+    table <- rbind(table, copula_fit_row(fallback_fit))
+    score <- table[[tolower(criterion)]]
+    eligible <- which(table$status == "ok" & is.finite(score))
+    fallback <- TRUE
   }
-  if (!length(eligible)) return(list(selected = NULL, fits = fits, table = table, fallback = TRUE,
-                                     warning = "No copula candidate converged."))
+  if (!length(eligible)) {
+    table$selected <- FALSE
+    return(list(selected = NULL, fits = fits, table = table, fallback = fallback,
+                warning = "No copula candidate converged."))
+  }
   selected_index <- eligible[which.min(score[eligible])]
   table$selected <- FALSE
   table$selected[selected_index] <- TRUE
@@ -134,23 +161,29 @@ fit_copula_candidates <- function(u, families = c("gaussian", "student", "clayto
 #' @export
 simulate_copula <- function(fit, n, seed = NULL, antithetic = FALSE) {
   if (!identical(fit$status, "ok")) stop("Cannot simulate an unsuccessful copula fit.", call. = FALSE)
-  if (!is.null(seed)) set.seed(seed)
   n <- as.integer(n)
   if (n < 1L) stop("Simulation count must be positive.", call. = FALSE)
-  if (fit$engine == "VineCopula") {
-    if (antithetic) stop("Antithetic pairing is not enabled for potentially asymmetric VineCopula families.", call. = FALSE)
-    u <- VineCopula::BiCopSim(N = n, family = fit$fit$family,
-                             par = fit$fit$par, par2 = fit$fit$par2)
-  } else {
-    draw_n <- if (antithetic) ceiling(n / 2) else n
-    rho <- fit$parameters$rho
-    z1 <- rnorm(draw_n); z2 <- rho * z1 + sqrt(1 - rho^2) * rnorm(draw_n)
-    if (fit$family == "student") {
-      scale <- sqrt(rchisq(draw_n, fit$parameters$df) / fit$parameters$df)
-      u <- cbind(stats::pt(z1 / scale, fit$parameters$df), stats::pt(z2 / scale, fit$parameters$df))
-    } else u <- cbind(pnorm(z1), pnorm(z2))
-    if (antithetic) u <- rbind(u, 1 - u)[seq_len(n), , drop = FALSE]
+  generate <- function() {
+    if (fit$engine == "VineCopula") {
+      if (antithetic) stop("Antithetic pairing is not enabled for potentially asymmetric VineCopula families.", call. = FALSE)
+      VineCopula::BiCopSim(N = n, family = fit$fit$family,
+                          par = fit$fit$par, par2 = fit$fit$par2)
+    } else {
+      draw_n <- if (antithetic) ceiling(n / 2) else n
+      rho <- fit$parameters$rho
+      z1 <- rnorm(draw_n)
+      z2 <- rho * z1 + sqrt(1 - rho^2) * rnorm(draw_n)
+      if (fit$family == "student") {
+        scale <- sqrt(rchisq(draw_n, fit$parameters$df) / fit$parameters$df)
+        u <- cbind(stats::pt(z1 / scale, fit$parameters$df), stats::pt(z2 / scale, fit$parameters$df))
+      } else {
+        u <- cbind(pnorm(z1), pnorm(z2))
+      }
+      if (antithetic) u <- rbind(u, 1 - u)[seq_len(n), , drop = FALSE]
+      u
+    }
   }
+  u <- with_preserved_seed(seed, generate())
   u[] <- pmin(1 - 1e-12, pmax(1e-12, u))
   u
 }

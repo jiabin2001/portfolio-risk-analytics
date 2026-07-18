@@ -1,6 +1,6 @@
 # Project Status
 
-Last updated: 2026-07-18 12:26 Europe/London
+Last updated: 2026-07-18 15:34 Europe/London
 
 ## Completed
 
@@ -16,7 +16,7 @@ Last updated: 2026-07-18 12:26 Europe/London
 
 ## Tested
 
-- Network-free test suite: **73 expectations passed, 0 failed, 0 errors**, repeated after
+- Network-free test suite: **111 expectations passed, 0 failed, 0 errors**, repeated after
   the full-profile output and documentation refresh.
 - Final standard `R CMD check --no-manual`: **Status: OK** (0 errors, 0 warnings, 0 notes).
 - Installed-package tests also pass inside `R CMD check`.
@@ -24,43 +24,34 @@ Last updated: 2026-07-18 12:26 Europe/London
   `R CMD check --as-cran`, and lint on Ubuntu with R 4.5.1.
 - Copula-GARCH checkpoint audit: first run wrote four rows for two origins; resumed run
   left the checkpoint timestamp unchanged and all first-run rows had `status = ok`.
-- Configured lintr: 121 non-functional style findings (36 long lines, 34 semicolons,
-  32 indentation, 17 brace, 2 object-length); no correctness issue was reported by
-  `R CMD check` code analysis.
+- Review-specific regression coverage includes configured return-space consistency,
+  copula fallback, complete cache identity, short-selling enforcement, checkpoint resume,
+  failed-row retry, exact Student-t centring, non-finite diagnostics, and RNG isolation.
 
 ## Smoke results
 
 - Profile: explicitly synthetic two-asset fixture; not real market data.
-- Runtime: **6.075 seconds**.
+- Runtime: **7.795 seconds**.
 - Marginal engine: `rugarch`; copula candidates through `VineCopula`.
 - Selected copula: Gumbel.
-- 2,000-draw current risk: 95% VaR **0.019064**, 95% ES **0.024536**;
-  99% VaR **0.026757**, 99% ES **0.033644**.
+- 2,000-draw current risk: 95% VaR **0.019241**, 95% ES **0.025206**;
+  99% VaR **0.027122**, 99% ES **0.035287**.
 - Rolling evaluation: 40 origins, four benchmark models, two confidence levels
   (320 common-schema forecast rows).
 
-## Validation results
+## Validation profile
 
-- Data: 1,082 aligned weekly observations, 2005-01-07 through 2025-12-30, cached from
-  Yahoo Finance; local-index-return mode with no FX conversion.
-- Runtime: **147.676 seconds**.
-- Marginal grid: **288/288 converged**; **120** passed every configured diagnostic.
-- Selected FTSE marginal: `ARMA(0,0)-eGARCH(2,1)-sstd`.
-- Selected S&P 500 marginal: `ARMA(0,1)-eGARCH(2,1)-sstd`.
-- Copulas: 6/6 fitted; BIC selected BB1 with Kendall tau **0.478591**,
-  lower-tail dependence **0.557949**, and upper-tail dependence **0.311974**.
-- 20,000-draw risk: 95% VaR **0.021897**, 95% ES **0.030627**;
-  99% VaR **0.035846**, 99% ES **0.044023**.
-- Rolling benchmark evaluation: 156 origins and 1,560 successful forecast rows.
-- Composite rank at 95%: Student-t first, 3 exceptions (1.923%), conditional-coverage
-  p-value 0.1262, mean quantile loss 0.001998; coverage traffic light is amber because
-  the exception rate is materially below the expected 5%.
-- Composite rank at 99%: Gaussian first, 1 exception (0.641%), conditional-coverage
-  p-value 0.8844, mean quantile loss 0.000734; coverage traffic light is green.
+The earlier operational validation run predated the configured-return-space correction,
+so its risk snapshot is intentionally not presented as a current verified result. The
+post-remediation full profile below covers the broader model grid, larger simulation, and
+all benchmark plus copula-GARCH rolling paths.
 
 ## Full-run results
 
-Completed successfully as run `full_20260718T102619` in **4,433.910 seconds**. The run
+Completed successfully as run `full_20260718T132533` in **7,634.207 wall-clock seconds**.
+The host suspended execution for approximately one hour during the first rolling origin;
+the run resumed in place without restart, and the R process accumulated approximately
+3,723 CPU seconds. The run
 used 1,338 aligned weekly observations from 2000-01-07 through 2025-12-30 and local-index-
 return mode with no FX conversion.
 
@@ -69,17 +60,18 @@ return mode with no FX conversion.
 - Selected S&P 500 marginal: `ARMA(0,1)-eGARCH(2,1)-sstd`.
 - Copulas: 6/6 fitted; BIC selected BB1 with Kendall tau **0.485844**,
   lower-tail dependence **0.544908**, and upper-tail dependence **0.343948**.
-- 100,000-draw risk: 95% VaR **0.022392**, 95% ES **0.031407**;
-  99% VaR **0.036787**, 99% ES **0.045767**.
+- 100,000-draw log-return risk: 95% VaR **0.022775**, 95% ES **0.032362**;
+  99% VaR **0.038186**, 99% ES **0.048084**.
 - Monte Carlo convergence: seven sample sizes from 1,000 to 100,000, five seeds, and two
   confidence levels produced 70 detail rows and 14 summary rows.
 - Rolling evaluation: 260 forecast origins, six models, two confidence levels, and
   **3,120/3,120 successful forecast rows** with zero model failures.
 - Composite rank at 95%: copula-GARCH first, 10 exceptions (3.846%), conditional-coverage
-  p-value 0.4510, mean quantile loss 0.002101, and green coverage status.
+  p-value 0.4510, mean quantile loss 0.002112, and green coverage status.
 - Composite rank at 99%: Gaussian first, 3 exceptions (1.154%), conditional-coverage
   p-value 0.0620, mean quantile loss 0.000668, and green coverage status.
-- The dependency-fingerprint caches and rolling checkpoints completed without restart.
+- The dependency-fingerprint caches and schema-aware rolling checkpoints completed
+  without restart; all 3,120 forecast rows have `status = ok`.
 
 ## Failed or skipped models
 
@@ -87,7 +79,6 @@ return mode with no FX conversion.
   diagnostic validity constraints and remain visible with rejection reasons.
 - Full: zero convergence failures; 432 converged candidates failed one or more diagnostic
   validity constraints and remain visible with rejection reasons.
-- No copula candidate failed in validation.
 - No copula or rolling forecast candidate failed in the full profile.
 - Native fallback supports only normal/Student-t sGARCH/eGARCH(1,1); other native
   candidates are structured failures when production packages are unavailable.
@@ -119,8 +110,7 @@ return mode with no FX conversion.
 
 R 4.5.1. Principal versions: `rugarch` 1.5-5, `VineCopula` 2.6.1, `quantmod`
 0.4-29, `targets` 1.12.0, `testthat` 3.3.2, `yaml` 2.3.12, `renv` 1.2.3,
-`R.utils` 2.13.0, and `rmarkdown` 2.31. Execution is sequential by default; workers are
-bounded by configuration and no GPU path is used.
+`R.utils` 2.13.0, and `rmarkdown` 2.31. Execution is sequential and no GPU path is used.
 
 ## Outputs generated
 

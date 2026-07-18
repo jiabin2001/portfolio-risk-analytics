@@ -1,4 +1,7 @@
-source("scripts/bootstrap.R")
+script_arg <- grep("^--file=", commandArgs(trailingOnly = FALSE), value = TRUE)
+script_dir <- if (length(script_arg)) dirname(normalizePath(sub("^--file=", "", script_arg[[1]]))) else "scripts"
+source(file.path(script_dir, "bootstrap.R"))
+setwd(.PRA_PROJECT_ROOT)
 
 quarto <- Sys.which("quarto")
 if (!nzchar(quarto)) {

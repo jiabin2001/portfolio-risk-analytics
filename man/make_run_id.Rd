@@ -2,7 +2,7 @@
 % Please edit documentation in R/logging.R
 \name{make_run_id}
 \alias{make_run_id}
-\title{Build a deterministic run identifier}
+\title{Build a timestamped run identifier}
 \usage{
 make_run_id(profile, when = Sys.time())
 }
@@ -12,5 +12,5 @@ make_run_id(profile, when = Sys.time())
 \item{when}{Timestamp.}
 }
 \description{
-Build a deterministic run identifier
+Build a timestamped run identifier
 }

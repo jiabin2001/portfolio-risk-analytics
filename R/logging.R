@@ -20,7 +20,7 @@ log_event <- function(level, stage, message, run_id = "latest", root = pra_proje
   invisible(path)
 }
 
-#' Build a deterministic run identifier
+#' Build a timestamped run identifier
 #' @param profile Profile name.
 #' @param when Timestamp.
 #' @export
