@@ -28,7 +28,6 @@ models:
   diagnostic_alpha: 0.01
   solver: hybrid
   timeout_seconds: 90
-  refit_frequency: 20
   reselection_frequency: 52
   copula_families: [gaussian, student, clayton, gumbel, frank, bb1]
 simulation:
@@ -38,7 +37,6 @@ simulation:
   seed: 20260718
   keep_asset_returns: false
 rolling:
-  enabled: true
   window_type: moving
   initial_window: 520
   window_size: 520
@@ -46,9 +44,6 @@ rolling:
   models: [historical, gaussian, student_t, ewma, filtered_historical]
   checkpoint: true
 compute:
-  parallel: false
-  workers: null
   resume: true
 report:
   render: false
-  format: html

@@ -28,7 +28,6 @@ models:
   diagnostic_alpha: 0.01
   solver: hybrid
   timeout_seconds: 120
-  refit_frequency: 20
   reselection_frequency: 65
   copula_families: [gaussian, student, clayton, gumbel, frank, bb1]
 simulation:
@@ -40,7 +39,6 @@ simulation:
   convergence_counts: [1000, 2000, 5000, 10000, 20000, 50000, 100000]
   convergence_seeds: [104729, 130363, 155921, 196613, 232003]
 rolling:
-  enabled: true
   window_type: moving
   initial_window: 520
   window_size: 520
@@ -48,9 +46,6 @@ rolling:
   models: [historical, gaussian, student_t, ewma, filtered_historical, copula_garch]
   checkpoint: true
 compute:
-  parallel: false
-  workers: null
   resume: true
 report:
   render: true
-  format: html

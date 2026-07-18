@@ -103,7 +103,8 @@ estimate_t_df <- function(standardised_returns, bounds = c(2.05, 100)) {
 #' Calculate risk measures for multiple confidence levels
 #' @param returns Numeric returns.
 #' @param confidence_levels Vector of confidence levels.
+#' @param type Quantile algorithm.
 #' @export
-risk_by_confidence <- function(returns, confidence_levels = c(0.95, 0.99)) {
-  do.call(rbind, lapply(confidence_levels, function(level) empirical_var_es(returns, level)))
+risk_by_confidence <- function(returns, confidence_levels = c(0.95, 0.99), type = 7L) {
+  do.call(rbind, lapply(confidence_levels, function(level) empirical_var_es(returns, level, type)))
 }

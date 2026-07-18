@@ -80,6 +80,38 @@ time_stage <- function(expr) {
   list(value = value, elapsed_seconds = unname(proc.time()[["elapsed"]] - started))
 }
 
+#' Evaluate code with a deterministic seed without changing caller RNG state
+#' @keywords internal
+with_preserved_seed <- function(seed, code) {
+  if (is.null(seed)) return(force(code))
+  assert_scalar(seed, "seed", "numeric")
+  if (seed < 0 || seed > .Machine$integer.max || seed != floor(seed)) {
+    stop("`seed` must be a non-negative integer within R's supported range.", call. = FALSE)
+  }
+  old_kind <- RNGkind()
+  had_seed <- exists(".Random.seed", envir = .GlobalEnv, inherits = FALSE)
+  if (had_seed) old_seed <- get(".Random.seed", envir = .GlobalEnv, inherits = FALSE)
+  on.exit({
+    do.call(RNGkind, as.list(old_kind))
+    if (had_seed) {
+      assign(".Random.seed", old_seed, envir = .GlobalEnv)
+    } else if (exists(".Random.seed", envir = .GlobalEnv, inherits = FALSE)) {
+      rm(".Random.seed", envir = .GlobalEnv)
+    }
+  }, add = TRUE)
+  set.seed(as.integer(seed))
+  force(code)
+}
+
+#' Stable MD5 for a serialisable R object
+#' @keywords internal
+stable_object_md5 <- function(object) {
+  path <- tempfile("pra-fingerprint-", fileext = ".rds")
+  on.exit(unlink(path), add = TRUE)
+  saveRDS(object, path, version = 2, compress = FALSE)
+  unname(tools::md5sum(path))
+}
+
 #' Stable log helper
 #' @keywords internal
 xlogy <- function(x, y) {
@@ -97,7 +129,8 @@ xlogy <- function(x, y) {
 #' @export
 atomic_save_rds <- function(object, path) {
   dir.create(dirname(path), recursive = TRUE, showWarnings = FALSE)
-  tmp <- paste0(path, ".tmp")
+  tmp <- tempfile(paste0(basename(path), "."), tmpdir = dirname(path))
+  on.exit(unlink(tmp), add = TRUE)
   saveRDS(object, tmp)
   if (file.exists(path)) unlink(path)
   if (!file.rename(tmp, path)) stop("Could not atomically move checkpoint into place.", call. = FALSE)

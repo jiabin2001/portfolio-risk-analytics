@@ -16,7 +16,13 @@ native_variance_filter <- function(residuals, family, parameters) {
     for (i in 2:n) h[i] <- parameters$omega + parameters$alpha * e[i - 1]^2 + parameters$beta * h[i - 1]
     next_h <- parameters$omega + parameters$alpha * tail(e, 1)^2 + parameters$beta * tail(h, 1)
   } else if (family == "eGARCH") {
-    expectation_abs_z <- sqrt(2 / pi)
+    expectation_abs_z <- if (is.null(parameters$df)) {
+      sqrt(2 / pi)
+    } else {
+      df <- parameters$df
+      exp(log(2) + 0.5 * log(df - 2) + lgamma((df + 1) / 2) -
+            log(df - 1) - 0.5 * log(pi) - lgamma(df / 2))
+    }
     for (i in 2:n) {
       z_prev <- e[i - 1] / sqrt(h[i - 1])
       h[i] <- exp(parameters$omega + parameters$alpha * (abs(z_prev) - expectation_abs_z) +
@@ -88,7 +94,10 @@ fit_native_marginal <- function(returns, spec) {
     loglik = loglik, aic = -2 * loglik + 2 * k,
     bic = -2 * loglik + log(length(residuals)) * k,
     parameter_valid = all(is.finite(unlist(parameters))) && is.finite(filtered$forecast) && filtered$forecast > 0,
-    warnings = "Native engine uses transparent two-step ARMA then volatility estimation; production runs should prefer rugarch."
+    warnings = paste(
+      "Native engine uses transparent two-step ARMA then volatility estimation; production runs should prefer rugarch.",
+      "Its information criteria are approximate and selection is restricted to one ARMA order."
+    )
   )
 }
 

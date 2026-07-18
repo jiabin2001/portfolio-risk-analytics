@@ -74,7 +74,8 @@ run_analysis <- function(config_path, root = pra_project_root(), run_copula_roll
   simulation <- simulate_portfolio_risk(copula_selection$selected, selected_marginals,
     cfg$portfolio$weights, cfg$simulation$final_n, cfg$simulation$seed,
     cfg$simulation$chunk_size, cfg$portfolio$return_type, cfg$risk$confidence_levels,
-    cfg$simulation$keep_asset_returns %||% FALSE)
+    cfg$simulation$keep_asset_returns %||% FALSE,
+    allow_short = cfg$portfolio$allow_short)
   simulation_path <- write_output_table(simulation$risk, "current_copula_risk", root)
   atomic_save_rds(simulation$metadata, file.path(dirs[["models"]], "simulation_metadata.rds"))
   log_event("INFO", "simulation", sprintf("Completed %d draws in %.3fs",
@@ -112,8 +113,9 @@ run_analysis <- function(config_path, root = pra_project_root(), run_copula_roll
   if (!is.null(cfg$simulation$convergence_counts) && !is.null(cfg$simulation$convergence_seeds)) {
     simulation_function <- function(n, seed) simulate_portfolio_risk(
       copula_selection$selected, selected_marginals, cfg$portfolio$weights, n, seed,
-      cfg$simulation$chunk_size, cfg$portfolio$return_type, cfg$risk$confidence_levels
-    )$portfolio_simple_returns
+      cfg$simulation$chunk_size, cfg$portfolio$return_type, cfg$risk$confidence_levels,
+      allow_short = cfg$portfolio$allow_short
+    )$portfolio_model_returns
     convergence <- monte_carlo_convergence(simulation_function,
       cfg$simulation$convergence_counts, cfg$simulation$convergence_seeds,
       cfg$risk$confidence_levels)
@@ -131,7 +133,8 @@ run_analysis <- function(config_path, root = pra_project_root(), run_copula_roll
       file.path(dirs[["figures"]], "copula_diagnostic.png")),
     simulation = plot_simulation_risk(simulation, file.path(dirs[["figures"]], "simulation_risk.png")),
     var_exceedances = plot_var_exceedances(rolling, file.path(dirs[["figures"]], "rolling_var_exceedances.png"),
-      max(cfg$risk$confidence_levels)),
+      max(cfg$risk$confidence_levels),
+      model = if ("copula_garch" %in% rolling$model) "copula_garch" else NULL),
     model_comparison = plot_model_comparison(comparison, file.path(dirs[["figures"]], "model_comparison.png"))
   )
   files <- c(current_baselines = baseline_path, marginal_selection = marginal_path,
