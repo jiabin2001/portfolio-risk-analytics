@@ -109,29 +109,31 @@ source("scripts/run_tests.R")
 
 Tests use deterministic fixtures and do not require live network access.
 
-## Outputs and verified validation results
+## Outputs and verified full-profile results
 
 Successful runs generate machine-readable CSV tables and PNG figures under `outputs/`.
-The snapshot below comes from the real-data `validation.yml` run completed on 2026-07-18:
-1,082 aligned weekly price observations from 2005-01-07 through 2025-12-30, local-index-
-return mode, and 20,000 current-risk simulations. It is not an FX-adjusted investable
-portfolio result.
+The snapshot below comes from the real-data `full.yml` run completed on 2026-07-18:
+1,338 aligned weekly price observations from 2000-01-07 through 2025-12-30, local-index-
+return mode, 100,000 current-risk simulations, and 260 out-of-sample forecast origins.
+It is not an FX-adjusted investable portfolio result.
 
 | Result | Verified output |
 |---|---:|
-| FTSE marginal | ARMA(0,0)-eGARCH(2,1), skewed Student-t |
+| FTSE marginal | ARMA(0,0)-eGARCH(1,1), skewed Student-t |
 | S&P 500 marginal | ARMA(0,1)-eGARCH(2,1), skewed Student-t |
-| Selected copula | BB1; Kendall tau 0.4786 |
-| Tail dependence | lower 0.5579; upper 0.3120 |
-| 95% VaR / ES | 2.1897% / 3.0627% |
-| 99% VaR / ES | 3.5846% / 4.4023% |
+| Selected copula | BB1; Kendall tau 0.4858 |
+| Tail dependence | lower 0.5449; upper 0.3439 |
+| 95% VaR / ES | 2.2392% / 3.1407% |
+| 99% VaR / ES | 3.6787% / 4.5767% |
+| Full runtime | 4,433.91 seconds |
 
-All 288 marginal candidates converged; 120 passed every configured diagnostic. All six
-copula candidates fitted successfully. In the 156-period benchmark evaluation, the
-multi-criterion rank placed Student-t first at 95% (3 exceptions; mean quantile loss
-0.001998) and Gaussian first at 99% (1 exception; mean quantile loss 0.000734). These
-ranks combine calibration and loss with runtime/complexity; they are not declarations
-based on a single p-value.
+All 1,080 marginal candidates converged; 648 passed every configured diagnostic. All six
+copula candidates fitted successfully. The rolling evaluation produced 3,120 successful
+forecast rows with no model failures. The multi-criterion rank placed copula-GARCH first
+at 95% (10 exceptions; conditional-coverage p-value 0.4510; mean quantile loss 0.002101)
+and Gaussian first at 99% (3 exceptions; conditional-coverage p-value 0.0620; mean
+quantile loss 0.000668). These ranks combine calibration and loss with runtime/complexity;
+they are not declarations based on a single p-value.
 
 ![Rolling 99% VaR exceedances](outputs/figures/rolling_var_exceedances.png)
 
@@ -144,6 +146,7 @@ Headline artefacts are:
 - `outputs/figures/rolling_var_exceedances.png`
 - `outputs/figures/model_comparison.png`
 - `outputs/figures/copula_diagnostic.png`
+- `outputs/figures/monte_carlo_convergence.png`
 - `outputs/tables/current_copula_risk.csv`
 - `outputs/tables/model_comparison.csv`
 

@@ -1,6 +1,6 @@
 # Project Status
 
-Last updated: 2026-07-18 10:27 Europe/London
+Last updated: 2026-07-18 12:26 Europe/London
 
 ## Completed
 
@@ -9,16 +9,19 @@ Last updated: 2026-07-18 10:27 Europe/London
   reporting modules.
 - Project-local `renv` library/cache/sandbox configuration and consistent `renv.lock`.
 - Raw, processed, and dependency-aware cache artefacts kept in separate project directories.
-- Synthetic fixture smoke run and real-data validation run.
+- Synthetic fixture smoke run plus real-data validation and full-profile runs.
 - Roxygen documentation and generated `NAMESPACE`/`man/` pages.
 - GitHub Actions workflow, MIT licence, contribution guide, Quarto report, and README.
 - Portable Quarto 1.9.38 verified by SHA-256 and kept under ignored `tools/`; HTML report rendered.
 
 ## Tested
 
-- Network-free test suite: **73 expectations passed, 0 failed, 0 errors**.
-- Standard `R CMD check --no-manual`: **Status: OK** (0 errors, 0 warnings, 0 notes).
+- Network-free test suite: **73 expectations passed, 0 failed, 0 errors**, repeated after
+  the full-profile output and documentation refresh.
+- Final standard `R CMD check --no-manual`: **Status: OK** (0 errors, 0 warnings, 0 notes).
 - Installed-package tests also pass inside `R CMD check`.
+- GitHub Actions run `29640689344` passed dependency restore, unit tests,
+  `R CMD check --as-cran`, and lint on Ubuntu with R 4.5.1.
 - Copula-GARCH checkpoint audit: first run wrote four rows for two origins; resumed run
   left the checkpoint timestamp unchanged and all first-run rows had `status = ok`.
 - Configured lintr: 121 non-functional style findings (36 long lines, 34 semicolons,
@@ -57,24 +60,35 @@ Last updated: 2026-07-18 10:27 Europe/London
 
 ## Full-run results
 
-Running; no full-profile risk result is reported yet. The checkpointed run started at
-2026-07-18 10:26 Europe/London in managed execution cell `166`. Its structured log is
-`outputs/logs/full_20260718T102619.tsv`; the first two entries confirm the full profile
-started and loaded the cached aligned prices in 0.030 seconds. It is currently in the
-initial marginal-grid stage, before the first rolling checkpoint is expected.
+Completed successfully as run `full_20260718T102619` in **4,433.910 seconds**. The run
+used 1,338 aligned weekly observations from 2000-01-07 through 2025-12-30 and local-index-
+return mode with no FX conversion.
 
-The full data cache contains 1,338 aligned weekly observations from 2000-01-07 through
-2025-12-30. An 18-candidate stratified timing sample took 22.75 seconds with 18/18
-convergence. With a 540-candidate grid per asset, 100,000 current draws, four periodic
-model reselections, 260 copula-GARCH forecast origins, and convergence analysis, the
-current estimate is approximately **2.0-2.5 hours**. The long run is checkpointed by
-forecast date and the current marginal/copula stage is dependency-fingerprint cached.
+- Marginal grid: **1,080/1,080 converged** and **648** passed every configured diagnostic.
+- Selected FTSE marginal: `ARMA(0,0)-eGARCH(1,1)-sstd`.
+- Selected S&P 500 marginal: `ARMA(0,1)-eGARCH(2,1)-sstd`.
+- Copulas: 6/6 fitted; BIC selected BB1 with Kendall tau **0.485844**,
+  lower-tail dependence **0.544908**, and upper-tail dependence **0.343948**.
+- 100,000-draw risk: 95% VaR **0.022392**, 95% ES **0.031407**;
+  99% VaR **0.036787**, 99% ES **0.045767**.
+- Monte Carlo convergence: seven sample sizes from 1,000 to 100,000, five seeds, and two
+  confidence levels produced 70 detail rows and 14 summary rows.
+- Rolling evaluation: 260 forecast origins, six models, two confidence levels, and
+  **3,120/3,120 successful forecast rows** with zero model failures.
+- Composite rank at 95%: copula-GARCH first, 10 exceptions (3.846%), conditional-coverage
+  p-value 0.4510, mean quantile loss 0.002101, and green coverage status.
+- Composite rank at 99%: Gaussian first, 3 exceptions (1.154%), conditional-coverage
+  p-value 0.0620, mean quantile loss 0.000668, and green coverage status.
+- The dependency-fingerprint caches and rolling checkpoints completed without restart.
 
 ## Failed or skipped models
 
 - Validation: zero convergence failures; 168 converged candidates failed one or more
   diagnostic validity constraints and remain visible with rejection reasons.
+- Full: zero convergence failures; 432 converged candidates failed one or more diagnostic
+  validity constraints and remain visible with rejection reasons.
 - No copula candidate failed in validation.
+- No copula or rolling forecast candidate failed in the full profile.
 - Native fallback supports only normal/Student-t sGARCH/eGARCH(1,1); other native
   candidates are structured failures when production packages are unavailable.
 
@@ -85,6 +99,8 @@ forecast date and the current marginal/copula stage is dependency-fingerprint ca
 - `testthat` 3.3.2 was built under R 4.5.3 while the runtime is R 4.5.1; all tests pass.
 - The first `--as-cran` check could not perform CRAN incoming network checks in the
   sandbox. The subsequent standard package check completed with `Status: OK`.
+- GitHub Actions passes but reports a non-blocking Node 20 deprecation annotation for
+  `actions/checkout@v4` and non-blocking configured style-lint annotations.
 
 ## Known limitations
 
@@ -108,18 +124,18 @@ bounded by configuration and no GPU path is used.
 
 ## Outputs generated
 
-- Five validation PNG figures under `outputs/figures/`.
-- Current baseline/copula risk, marginal selection, copula selection, rolling forecasts,
-  model comparison, and manifest CSV files under `outputs/tables/`.
-- `report/portfolio_risk_analytics.html` rendered from generated outputs (49,232 bytes).
+- Six full-profile PNG figures under `outputs/figures/`, including Monte Carlo convergence.
+- Nine full-profile CSV tables under `outputs/tables/`, including convergence detail and
+  summary, rolling forecasts, model comparison, and the output manifest.
+- `report/portfolio_risk_analytics.html` rendered from generated outputs (51,617 bytes).
 - Structured logs under ignored `outputs/logs/`, models under ignored `outputs/models/`,
   and resumable checkpoints under ignored `outputs/checkpoints/`.
 
 ## Remaining tasks
 
-- Monitor the active checkpointed full run through completion.
-- On completion, refresh report/README values from full outputs and rerun final check.
-- Optionally reduce the remaining non-functional style lints.
+- No required implementation or verification task remains.
+- Optionally reduce the remaining non-functional style lints and upgrade
+  `actions/checkout` after confirming the preferred Node 24-compatible major version.
 
 ## Exact reproduction commands
 
