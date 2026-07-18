@@ -1,0 +1,62 @@
+# Local-only material
+_reference/
+
+# R and IDE state
+.Rhistory
+.RData
+.Ruserdata
+.Rproj.user/
+*.Rproj
+.Renviron
+
+# Dependency and pipeline caches
+renv/library/
+renv/staging/
+renv/python/
+renv/root/
+renv/cache/
+renv/sandbox/
+renv/cellar/
+_targets/
+data/raw/*
+data/cache/*
+data/processed/*
+outputs/models/*
+outputs/logs/*
+outputs/checkpoints/*
+outputs/checks*/
+
+# Private inputs and secrets
+*.pem
+*.key
+*.secret
+.env
+secrets/
+data/private/
+
+# Rendered and temporary intermediates
+report/_freeze/
+report/.quarto/
+report/*_files/
+report/*.html
+report/*.pdf
+tmp/
+*.tmp
+*.bak
+*.tar.gz
+*.Rcheck/
+Rplots.pdf
+tools/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Keep directory placeholders and small curated outputs
+!.gitkeep
+!data/raw/.gitkeep
+!data/cache/.gitkeep
+!data/processed/.gitkeep
+!outputs/models/.gitkeep
+!outputs/logs/.gitkeep
+!outputs/checkpoints/.gitkeep

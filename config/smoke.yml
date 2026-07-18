@@ -1,0 +1,56 @@
+profile: smoke
+data:
+  source: fixture
+  tickers: [ASSET_A, ASSET_B]
+  start: '2018-01-05'
+  end: '2024-02-23'
+  frequency: weekly
+  adjusted: true
+  cache: true
+  force_refresh: false
+  min_observations: 150
+  fixture_observations: 320
+  fixture_seed: 1107
+portfolio:
+  weights: [0.5, 0.5]
+  return_type: log
+  currency_mode: local_index_return
+  asset_currencies: [GBP, USD]
+  base_currency: GBP
+  allow_short: false
+risk:
+  confidence_levels: [0.95, 0.99]
+models:
+  arma_p: [0, 1]
+  arma_q: [0]
+  garch_orders: [[1, 1]]
+  volatility_families: [sGARCH, eGARCH]
+  distributions: [norm, std]
+  information_criterion: BIC
+  diagnostic_alpha: 0.01
+  solver: hybrid
+  timeout_seconds: 30
+  refit_frequency: 10
+  reselection_frequency: 20
+  copula_families: [gaussian, student, clayton, gumbel, frank]
+simulation:
+  final_n: 2000
+  rolling_n: 1000
+  chunk_size: 1000
+  seed: 20260718
+  keep_asset_returns: false
+rolling:
+  enabled: true
+  window_type: moving
+  initial_window: 180
+  window_size: 180
+  evaluation_observations: 40
+  models: [historical, gaussian, student_t, ewma]
+  checkpoint: true
+compute:
+  parallel: false
+  workers: 1
+  resume: true
+report:
+  render: false
+  format: html

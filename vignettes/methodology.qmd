@@ -1,0 +1,11 @@
+---
+title: "Methodology and Conventions"
+format: html
+---
+
+The engine represents realised returns with negative values for losses and reports VaR
+and ES as positive loss magnitudes. Fixed-weight portfolio returns are aggregated in
+simple-return space. Rolling forecasts train only through the observation immediately
+before the forecast date. Marginal models must converge and satisfy parameter checks
+before diagnostics and information-criterion ranking. Copula tail coefficients are
+interpreted on the return-CDF scale.

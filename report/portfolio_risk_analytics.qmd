@@ -1,0 +1,160 @@
+---
+title: "Portfolio Risk Analytics Engine"
+subtitle: "Conditional volatility, copula simulation, VaR/ES, and out-of-sample backtesting"
+format:
+  html:
+    toc: true
+    code-fold: true
+    theme: cosmo
+execute:
+  echo: false
+  warning: false
+  message: false
+---
+
+```{r}
+read_output <- function(name) {
+  path <- file.path("..", "outputs", "tables", paste0(name, ".csv"))
+  if (!file.exists(path)) return(data.frame(Status = sprintf("Missing generated table: %s", name)))
+  read.csv(path, check.names = FALSE)
+}
+figure_path <- function(name) file.path("..", "outputs", "figures", name)
+```
+
+# Executive Summary
+
+This report is generated from pipeline outputs. It never embeds hand-copied model
+estimates. The current risk table and the rolling comparison below exist only after a
+successful run.
+
+```{r}
+knitr::kable(read_output("current_copula_risk"), digits = 5)
+```
+
+# Risk Question
+
+How do conditional volatility, non-Gaussian marginal risk, and cross-asset dependence
+affect one-step portfolio VaR and ES, and do the forecasts remain calibrated out of sample?
+
+# Data and Portfolio Definition
+
+```{r}
+if (file.exists(figure_path("asset_prices.png"))) knitr::include_graphics(figure_path("asset_prices.png"))
+```
+
+# Currency and Return Conventions
+
+Negative returns are losses. VaR and ES are positive loss magnitudes. Portfolio simple
+return is the weighted sum of asset simple returns; exact portfolio log return is
+`log1p(portfolio_simple_return)`. Local-index-return mode performs no FX conversion.
+Base-currency mode instead requires aligned FX returns quoted as base-currency units per
+unit of asset currency.
+
+# Exploratory Analysis
+
+Price and return artefacts are generated from the validated aligned data, never from
+manual report inputs.
+
+# Baseline Risk Models
+
+```{r}
+knitr::kable(read_output("current_baseline_risk"), digits = 5)
+```
+
+# ARMA-GARCH Marginal Models
+
+Candidate ARMA orders, volatility families, distributions, solvers, and diagnostics are
+configuration driven. Every failed fit remains in the selection table.
+
+# Model Selection
+
+```{r}
+selection <- read_output("marginal_model_selection")
+knitr::kable(selection[selection$selected %in% TRUE | selection$convergence %in% FALSE, ], digits = 4)
+```
+
+# Residual Diagnostics
+
+Selection first enforces convergence and parameter validity, then evaluates standardised
+and squared-residual Ljung-Box tests.
+
+# PIT Transformation
+
+PIT values are clipped strictly inside `(0,1)` before inverse-CDF evaluation, and clipping
+counts are retained in model diagnostics.
+
+# Copula Dependence Modelling
+
+```{r}
+knitr::kable(read_output("copula_model_selection"), digits = 4)
+if (file.exists(figure_path("copula_diagnostic.png"))) knitr::include_graphics(figure_path("copula_diagnostic.png"))
+```
+
+# Tail Dependence
+
+Lower-tail dependence is the relevant coefficient for joint extreme negative returns on
+the return-CDF scale. Upper-tail dependence describes joint extreme positive returns and
+is not labelled crash dependence.
+
+# Monte Carlo Simulation
+
+Joint uniforms are transformed through the selected marginal inverse PITs, conditional
+means and volatilities are restored, and asset log returns are converted to simple returns
+before portfolio aggregation.
+
+```{r}
+if (file.exists(figure_path("simulation_risk.png"))) knitr::include_graphics(figure_path("simulation_risk.png"))
+```
+
+# Portfolio VaR
+
+VaR is a loss-quantile threshold, not a maximum loss.
+
+# Expected Shortfall
+
+ES is the mean loss beyond the VaR threshold under the configured tail convention.
+
+# Rolling Out-of-Sample Backtesting
+
+```{r}
+if (file.exists(figure_path("rolling_var_exceedances.png"))) knitr::include_graphics(figure_path("rolling_var_exceedances.png"))
+```
+
+# Benchmark Comparison
+
+```{r}
+knitr::kable(read_output("model_comparison"), digits = 5)
+if (file.exists(figure_path("model_comparison.png"))) knitr::include_graphics(figure_path("model_comparison.png"))
+```
+
+# Monte Carlo Convergence
+
+The full profile repeats configured simulation counts and seeds. A convergence result is
+reported only when that optional stage has run.
+
+# Sensitivity Analysis
+
+Confidence levels, windows, weights, innovation distributions, and copula families are
+controlled in YAML profiles and can be varied without code changes.
+
+# Computational Performance
+
+Stage timings and failed-fit counts are retained in logs and result tables. Simulations
+are chunked; rolling forecasts are checkpointed and resumable.
+
+# Limitations
+
+The default cross-index demonstration uses local-index-return mode and therefore does not
+claim a base-currency investable portfolio. Rotated and Archimedean copulas require the
+optional dependence package. ES evaluation includes descriptive residuals and a joint
+score but is not presented as a formal ES hypothesis test.
+
+# Reproducibility
+
+Use the profile runners in `scripts/`, or set `PRA_CONFIG` and execute the targets pipeline.
+Seeds and actual simulation counts are stored with outputs.
+
+# Conclusion
+
+Conclusions must be drawn from the generated backtest table. No model is declared best
+from a single p-value.
