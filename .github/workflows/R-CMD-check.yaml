@@ -21,13 +21,16 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y cmake libcurl4-openssl-dev libglpk-dev pandoc
       - uses: r-lib/actions/setup-renv@v2
+      - name: Install CI tooling
+        shell: Rscript {0}
+        run: install.packages(c("rcmdcheck", "lintr"))
       - name: Unit tests
         run: Rscript scripts/run_tests.R
       - name: R CMD check
         uses: r-lib/actions/check-r-package@v2
         with:
           args: 'c("--no-manual", "--as-cran")'
-          error-on: 'error'
+          error-on: '"error"'
       - name: Lint
         shell: Rscript {0}
         run: |
