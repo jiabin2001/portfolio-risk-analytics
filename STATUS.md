@@ -1,6 +1,6 @@
 # Project Status
 
-Last updated: 2026-07-18 10:10 Europe/London
+Last updated: 2026-07-18 10:27 Europe/London
 
 ## Completed
 
@@ -57,11 +57,17 @@ Last updated: 2026-07-18 10:10 Europe/London
 
 ## Full-run results
 
-Not yet complete. The full data cache contains 1,338 aligned weekly observations from
-2000-01-07 through 2025-12-30. An 18-candidate stratified timing sample took 22.75 seconds
-with 18/18 convergence. With a 540-candidate grid per asset, 100,000 current draws, four
-periodic model reselections, 260 copula-GARCH forecast origins, and convergence analysis,
-the current estimate is approximately **2.0-2.5 hours**. The long run is checkpointed by
+Running; no full-profile risk result is reported yet. The checkpointed run started at
+2026-07-18 10:26 Europe/London in managed execution cell `166`. Its structured log is
+`outputs/logs/full_20260718T102619.tsv`; the first two entries confirm the full profile
+started and loaded the cached aligned prices in 0.030 seconds. It is currently in the
+initial marginal-grid stage, before the first rolling checkpoint is expected.
+
+The full data cache contains 1,338 aligned weekly observations from 2000-01-07 through
+2025-12-30. An 18-candidate stratified timing sample took 22.75 seconds with 18/18
+convergence. With a 540-candidate grid per asset, 100,000 current draws, four periodic
+model reselections, 260 copula-GARCH forecast origins, and convergence analysis, the
+current estimate is approximately **2.0-2.5 hours**. The long run is checkpointed by
 forecast date and the current marginal/copula stage is dependency-fingerprint cached.
 
 ## Failed or skipped models
@@ -111,7 +117,7 @@ bounded by configuration and no GPU path is used.
 
 ## Remaining tasks
 
-- Launch and monitor the checkpointed full run.
+- Monitor the active checkpointed full run through completion.
 - On completion, refresh report/README values from full outputs and rerun final check.
 - Optionally reduce the remaining non-functional style lints.
 
