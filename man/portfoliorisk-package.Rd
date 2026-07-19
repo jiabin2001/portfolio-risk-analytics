@@ -10,11 +10,11 @@ Reproducible data validation, conditional marginal modelling, copula simulation,
 positive-loss VaR/ES estimation, and leakage-free rolling backtesting.
 }
 \author{
-\strong{Maintainer}: Portfolio Risk Analytics Contributors \email{maintainer@example.com}
+\strong{Maintainer}: Jiabin Zhang \email{115036749+jiabin2001@users.noreply.github.com}
 
 Authors:
 \itemize{
-  \item Portfolio Risk Analytics Contributors \email{maintainer@example.com}
+  \item Jiabin Zhang \email{115036749+jiabin2001@users.noreply.github.com}
 }
 
 }

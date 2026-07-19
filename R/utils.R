@@ -56,20 +56,6 @@ ensure_project_dirs <- function(root = pra_project_root()) {
   paths
 }
 
-#' Return a safe worker count
-#' @param requested Optional configured count.
-#' @param detected Detected logical cores (injectable for tests).
-#' @export
-safe_worker_count <- function(requested = NULL, detected = parallel::detectCores(logical = TRUE)) {
-  if (!is.finite(detected) || detected < 1) detected <- 1L
-  cap <- max(1L, min(floor(detected / 2), detected - 2L))
-  if (is.null(requested)) return(as.integer(cap))
-  if (length(requested) != 1L || !is.numeric(requested) || !is.finite(requested) || requested < 1) {
-    stop("`requested` workers must be a positive integer or NULL.", call. = FALSE)
-  }
-  as.integer(min(requested, cap))
-}
-
 #' Time an expression
 #' @param expr Expression to evaluate.
 #' @return List with value and elapsed seconds.

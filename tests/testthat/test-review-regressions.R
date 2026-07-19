@@ -78,6 +78,23 @@ test_that("price cache identity covers the complete data request", {
   expect_equal(length(list.files(file.path(root, "data", "cache"), pattern = "[.]rds$")), 2)
 })
 
+test_that("data paths recognise UNC roots and stale caches explain refresh recovery", {
+  expect_true(is_absolute_data_path("\\\\server\\share\\prices.csv"))
+  expect_true(is_absolute_data_path("C:/prices/input.csv"))
+  expect_false(is_absolute_data_path("data/input.csv"))
+
+  root <- tempfile("pra-stale-cache-")
+  dir.create(root, recursive = TRUE, showWarnings = FALSE)
+  cfg <- make_test_config()
+  invisible(load_price_data(cfg, root))
+  cache_path <- list.files(file.path(root, "data", "cache"), full.names = TRUE)[[1]]
+  cached <- readRDS(cache_path)
+  cached$metadata$request_signature$start <- "1900-01-01"
+  saveRDS(cached, cache_path)
+  expect_error(load_price_data(cfg, root), "force_refresh")
+  expect_silent(load_price_data(cfg, root, force_refresh = TRUE))
+})
+
 test_that("configuration validation rejects deep invalid values", {
   cfg <- make_test_config()
   expect_silent(validate_config(cfg))

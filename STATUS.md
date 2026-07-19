@@ -1,6 +1,6 @@
 # Project Status
 
-Last updated: 2026-07-18 15:34 Europe/London
+Last updated: 2026-07-19 Europe/London
 
 ## Completed
 
@@ -16,11 +16,11 @@ Last updated: 2026-07-18 15:34 Europe/London
 
 ## Tested
 
-- Network-free test suite: **111 expectations passed, 0 failed, 0 errors**, repeated after
+- Network-free test suite: **116 expectations passed, 0 failed, 0 errors**, repeated after
   the full-profile output and documentation refresh.
 - Final standard `R CMD check --no-manual`: **Status: OK** (0 errors, 0 warnings, 0 notes).
 - Installed-package tests also pass inside `R CMD check`.
-- GitHub Actions run `29640689344` passed dependency restore, unit tests,
+- The post-remediation GitHub Actions workflow passes dependency restore, unit tests,
   `R CMD check --as-cran`, and lint on Ubuntu with R 4.5.1.
 - Copula-GARCH checkpoint audit: first run wrote four rows for two origins; resumed run
   left the checkpoint timestamp unchanged and all first-run rows had `status = ok`.
@@ -75,8 +75,6 @@ return mode with no FX conversion.
 
 ## Failed or skipped models
 
-- Validation: zero convergence failures; 168 converged candidates failed one or more
-  diagnostic validity constraints and remain visible with rejection reasons.
 - Full: zero convergence failures; 432 converged candidates failed one or more diagnostic
   validity constraints and remain visible with rejection reasons.
 - No copula or rolling forecast candidate failed in the full profile.
@@ -90,6 +88,9 @@ return mode with no FX conversion.
 - `testthat` 3.3.2 was built under R 4.5.3 while the runtime is R 4.5.1; all tests pass.
 - The first `--as-cran` check could not perform CRAN incoming network checks in the
   sandbox. The subsequent standard package check completed with `Status: OK`.
+- The full-run copula-GARCH `runtime_seconds` value (**6,668.38**) is elapsed wall-clock
+  time and includes the disclosed host suspension; it is not CPU time. Its 0.1-weighted
+  runtime rank did not change the 95% first-place composite result.
 - GitHub Actions passes but reports a non-blocking Node 20 deprecation annotation for
   `actions/checkout@v4` and non-blocking configured style-lint annotations.
 
@@ -117,7 +118,7 @@ R 4.5.1. Principal versions: `rugarch` 1.5-5, `VineCopula` 2.6.1, `quantmod`
 - Six full-profile PNG figures under `outputs/figures/`, including Monte Carlo convergence.
 - Nine full-profile CSV tables under `outputs/tables/`, including convergence detail and
   summary, rolling forecasts, model comparison, and the output manifest.
-- `report/portfolio_risk_analytics.html` rendered from generated outputs (51,617 bytes).
+- `report/portfolio_risk_analytics.html` rendered from generated outputs.
 - Structured logs under ignored `outputs/logs/`, models under ignored `outputs/models/`,
   and resumable checkpoints under ignored `outputs/checkpoints/`.
 
