@@ -191,10 +191,6 @@ project-local.
 - Add formal comparative predictive-ability tests and validated ES hypothesis tests.
 - Add a fully hedged base-currency demonstration with cached FX data.
 
-## Contributors
-
-- [Jiabin Zhang](https://github.com/jiabin2001) — project creator and maintainer.
-
 ## License
 
 MIT. See [LICENSE.md](LICENSE.md).
