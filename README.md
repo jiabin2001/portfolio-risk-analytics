@@ -168,8 +168,9 @@ the best model.
 
 Three YAML profiles control dates, assets, currencies, weights, model grids, diagnostics,
 windows, simulation budgets, and seeds. `renv.lock` captures dependencies;
-`_targets.R` provides dependency-aware orchestration; runner scripts provide an explicit
-fallback. Downloads, logs, checkpoints, and model objects remain project-local.
+`_targets.R` provides a targets-compatible wrapper around the same tested pipeline used
+by the runner scripts. Downloads, logs, checkpoints, and model objects remain
+project-local.
 
 ## Limitations
 
@@ -189,6 +190,10 @@ fallback. Downloads, logs, checkpoints, and model objects remain project-local.
 - Add transaction costs and scheduled rebalancing.
 - Add formal comparative predictive-ability tests and validated ES hypothesis tests.
 - Add a fully hedged base-currency demonstration with cached FX data.
+
+## Contributors
+
+- [Jiabin Zhang](https://github.com/jiabin2001) — project creator and maintainer.
 
 ## License
 

@@ -4,5 +4,5 @@
 #' positive-loss VaR/ES estimation, and leakage-free rolling backtesting.
 #'
 #' @keywords internal
-#' @import graphics grDevices parallel stats utils
+#' @import graphics grDevices stats utils
 "_PACKAGE"

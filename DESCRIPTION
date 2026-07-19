@@ -1,7 +1,8 @@
 Package: portfoliorisk
 Title: Portfolio Risk Analytics Engine
 Version: 0.1.0
-Authors@R: person("Portfolio Risk Analytics", "Contributors", role = c("aut", "cre"), email = "maintainer@example.com")
+Authors@R: person("Jiabin", "Zhang", role = c("aut", "cre"),
+    email = "115036749+jiabin2001@users.noreply.github.com")
 Description: A reproducible market-risk modelling and backtesting framework
     combining conditional volatility models, copula-based dependence modelling,
     Monte Carlo simulation, Value-at-Risk, Expected Shortfall, and rolling
@@ -13,7 +14,6 @@ Depends: R (>= 4.2.0)
 Imports:
     graphics,
     grDevices,
-    parallel,
     stats,
     utils,
     yaml

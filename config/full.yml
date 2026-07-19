@@ -33,6 +33,7 @@ models:
 simulation:
   final_n: 100000
   rolling_n: 10000
+  # Fixed values are reproducible; changing chunk_size can change exact Monte Carlo draws.
   chunk_size: 10000
   seed: 20260718
   keep_asset_returns: false

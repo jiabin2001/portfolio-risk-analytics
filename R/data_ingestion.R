@@ -31,12 +31,25 @@ generate_fixture_prices <- function(tickers = c("ASSET_A", "ASSET_B"), n = 320L,
   out
 }
 
+#' Recognise absolute local and UNC data paths
+#' @noRd
+is_absolute_data_path <- function(path) {
+  is.character(path) && length(path) == 1L && !is.na(path) &&
+    grepl("^(?:[A-Za-z]:[\\\\/]|/|\\\\\\\\)", path, perl = TRUE)
+}
+
+#' Resolve a configured data path without rewriting absolute paths
+#' @noRd
+resolve_data_path <- function(path, root) {
+  if (is_absolute_data_path(path)) path else file.path(root, path)
+}
+
 #' Build a complete data-request signature
 #' @keywords internal
 data_request_signature <- function(cfg, root) {
   csv_path <- cfg$data$path %||% NA_character_
   if (identical(cfg$data$source, "csv") && !is.na(csv_path)) {
-    csv_path <- if (grepl("^[A-Za-z]:|^/", csv_path)) csv_path else file.path(root, csv_path)
+    csv_path <- resolve_data_path(csv_path, root)
     csv_path <- normalizePath(csv_path, winslash = "/", mustWork = FALSE)
   }
   list(
@@ -68,7 +81,10 @@ load_price_data <- function(cfg, root = pra_project_root(), force_refresh = NULL
   use_cached <- function(cached, warning = NULL) {
     if (!is.list(cached) || !is.data.frame(cached$prices) || !is.data.frame(cached$aligned) ||
         !identical(cached$metadata$request_signature, request_signature)) {
-      stop("Cached price data do not match the complete configured request.", call. = FALSE)
+      stop(
+        "Cached price data do not match the complete configured request; rerun with `data.force_refresh: true` or `force_refresh = TRUE`.",
+        call. = FALSE
+      )
     }
     if (!file.exists(raw_path)) atomic_save_rds(cached$prices, raw_path)
     if (!file.exists(processed_path)) atomic_save_rds(cached$aligned, processed_path)
@@ -88,7 +104,7 @@ load_price_data <- function(cfg, root = pra_project_root(), force_refresh = NULL
     metadata <- attr(prices, "metadata")
   } else if (identical(source, "csv")) {
     if (is.null(cfg$data$path)) stop("CSV source requires `data.path`.", call. = FALSE)
-    input_path <- if (grepl("^[A-Za-z]:|^/", cfg$data$path)) cfg$data$path else file.path(root, cfg$data$path)
+    input_path <- resolve_data_path(cfg$data$path, root)
     prices <- read.csv(input_path, stringsAsFactors = FALSE)
     metadata <- list(source = "csv", input = cfg$data$path)
   } else if (identical(source, "yahoo")) {

@@ -29,7 +29,8 @@ simulate_portfolio_risk(
 
 \item{seed}{Random seed.}
 
-\item{chunk_size}{Chunk size.}
+\item{chunk_size}{Chunk size. Runs are deterministic for a fixed value, but changing
+it can change how the seeded random stream is mapped to bivariate draws.}
 
 \item{marginal_return_type}{Whether marginals model log or simple returns.}
 

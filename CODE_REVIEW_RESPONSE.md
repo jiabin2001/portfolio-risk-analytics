@@ -30,8 +30,9 @@ production `rugarch` path remains the preferred full-likelihood comparison.
 
 - Non-finite diagnostic p-values are retained as failed diagnostics instead of reaching
   `if (NA)`.
-- Simulation helpers preserve the caller's RNG state and use one deterministic stream
-  across chunks.
+- Simulation helpers preserve the caller's RNG state and avoid reseeding between chunks.
+  Results are deterministic for a fixed chunk size; changing it can remap the stream to
+  bivariate draws.
 - `risk_by_confidence()` forwards its quantile type, atomic RDS writes use unique temporary
   files, and fixture generation no longer changes global RNG state.
 - Runner scripts resolve the repository root from their own location, so invocation does

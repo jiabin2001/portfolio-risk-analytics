@@ -4,7 +4,8 @@
 #' @param weights Portfolio weights.
 #' @param n_simulations Number of draws.
 #' @param seed Random seed.
-#' @param chunk_size Chunk size.
+#' @param chunk_size Chunk size. Runs are deterministic for a fixed value, but changing
+#'   it can change how the seeded random stream is mapped to bivariate draws.
 #' @param marginal_return_type Whether marginals model log or simple returns.
 #' @param confidence_levels Risk confidence levels.
 #' @param keep_asset_returns Retain asset draws (memory intensive).
