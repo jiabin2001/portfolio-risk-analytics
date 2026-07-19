@@ -8,7 +8,8 @@ monte_carlo_convergence(
   simulation_function,
   counts = c(1000, 2000, 5000, 10000, 20000, 50000, 1e+05),
   seeds = c(104729, 130363, 155921),
-  confidence_levels = c(0.95, 0.99)
+  confidence_levels = c(0.95, 0.99),
+  type = 7L
 )
 }
 \arguments{
@@ -19,6 +20,8 @@ monte_carlo_convergence(
 \item{seeds}{Repeated seeds.}
 
 \item{confidence_levels}{Risk levels.}
+
+\item{type}{Quantile algorithm passed to \code{empirical_var_es}.}
 }
 \value{
 Detailed and summary tables.

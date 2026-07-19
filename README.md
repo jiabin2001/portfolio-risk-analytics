@@ -6,6 +6,10 @@ Expected Shortfall (ES), and rolling out-of-sample evaluation.
 
 > VaR and ES are positive loss magnitudes throughout. VaR is a loss-quantile threshold,
 > not a maximum loss.
+>
+> Forecasts and realised returns are compared in the configured return space. With the
+> supplied profiles, both simulated portfolio risk and rolling observations are log
+> returns; simple simulated portfolio returns remain available as an audit field.
 
 ## Why this project matters
 
@@ -123,17 +127,19 @@ It is not an FX-adjusted investable portfolio result.
 | S&P 500 marginal | ARMA(0,1)-eGARCH(2,1), skewed Student-t |
 | Selected copula | BB1; Kendall tau 0.4858 |
 | Tail dependence | lower 0.5449; upper 0.3439 |
-| 95% VaR / ES | 2.2392% / 3.1407% |
-| 99% VaR / ES | 3.6787% / 4.5767% |
-| Full runtime | 4,433.91 seconds |
+| 95% VaR / ES | 2.2775% / 3.2362% |
+| 99% VaR / ES | 3.8186% / 4.8084% |
+| Full wall-clock runtime | 7,634.21 seconds, including an approximately one-hour host suspension |
 
 All 1,080 marginal candidates converged; 648 passed every configured diagnostic. All six
 copula candidates fitted successfully. The rolling evaluation produced 3,120 successful
 forecast rows with no model failures. The multi-criterion rank placed copula-GARCH first
-at 95% (10 exceptions; conditional-coverage p-value 0.4510; mean quantile loss 0.002101)
+at 95% (10 exceptions; conditional-coverage p-value 0.4510; mean quantile loss 0.002112)
 and Gaussian first at 99% (3 exceptions; conditional-coverage p-value 0.0620; mean
-quantile loss 0.000668). These ranks combine calibration and loss with runtime/complexity;
-they are not declarations based on a single p-value.
+quantile loss 0.000668). The full run was not restarted; its reported wall time includes
+an approximately one-hour period in which the host suspended execution. These ranks
+combine calibration and loss with runtime/complexity; they are not declarations based on
+a single p-value.
 
 ![Rolling 99% VaR exceedances](outputs/figures/rolling_var_exceedances.png)
 
@@ -161,9 +167,10 @@ the best model.
 ## Reproducibility
 
 Three YAML profiles control dates, assets, currencies, weights, model grids, diagnostics,
-windows, simulation budgets, seeds, and workers. `renv.lock` captures dependencies;
-`_targets.R` provides dependency-aware orchestration; runner scripts provide an explicit
-fallback. Downloads, logs, checkpoints, and model objects remain project-local.
+windows, simulation budgets, and seeds. `renv.lock` captures dependencies;
+`_targets.R` provides a targets-compatible wrapper around the same tested pipeline used
+by the runner scripts. Downloads, logs, checkpoints, and model objects remain
+project-local.
 
 ## Limitations
 
@@ -183,6 +190,10 @@ fallback. Downloads, logs, checkpoints, and model objects remain project-local.
 - Add transaction costs and scheduled rebalancing.
 - Add formal comparative predictive-ability tests and validated ES hypothesis tests.
 - Add a fully hedged base-currency demonstration with cached FX data.
+
+## Contributors
+
+- [Jiabin Zhang](https://github.com/jiabin2001) — project creator and maintainer.
 
 ## License
 

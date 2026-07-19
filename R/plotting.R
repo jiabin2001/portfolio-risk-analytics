@@ -15,11 +15,11 @@ write_png <- function(path, code, width = 1400, height = 850, res = 140) {
 plot_asset_prices <- function(aligned_prices, path) {
   write_png(path, {
     values <- as.matrix(aligned_prices[-1])
+    colours <- grDevices::hcl.colors(ncol(values), "Dark 3")
     matplot(aligned_prices$date, values, type = "l", lty = 1, lwd = 1.5,
-            col = c("#1B4965", "#CA6702", "#4F772D", "#6D597A")[seq_len(ncol(values))],
+            col = colours,
             xlab = "Date", ylab = "Adjusted price (native index units)", main = "Aligned asset prices")
-    legend("topleft", legend = colnames(values), col = c("#1B4965", "#CA6702", "#4F772D", "#6D597A")[seq_len(ncol(values))],
-           lty = 1, bty = "n")
+    legend("topleft", legend = colnames(values), col = colours, lty = 1, bty = "n")
     grid(col = "#E5E7EB")
   })
 }
@@ -52,11 +52,12 @@ plot_var_exceedances <- function(forecasts, path, confidence = 0.99, model = NUL
   if (is.null(model)) model <- unique(x$model)[[1]]
   x <- x[x$model == model, , drop = FALSE]
   if (!nrow(x)) stop("No successful forecasts to plot.", call. = FALSE)
+  display_model <- gsub("_", "-", model, fixed = TRUE)
   write_png(path, {
     ylim <- range(c(x$realised_return, -x$var), finite = TRUE)
     plot(as.Date(x$forecast_date), x$realised_return, type = "h", col = "#64748B", lwd = 1,
          xlab = "Forecast date", ylab = "Return", ylim = ylim,
-         main = sprintf("Rolling %.0f%% VaR exceedances - %s", 100 * confidence, model))
+         main = sprintf("Rolling %.0f%% VaR exceedances - %s", 100 * confidence, display_model))
     lines(as.Date(x$forecast_date), -x$var, col = "#B91C1C", lwd = 2)
     points(as.Date(x$forecast_date)[x$exceedance], x$realised_return[x$exceedance], pch = 19, col = "#DC2626")
     legend("bottomleft", c("Realised return", "VaR threshold", "Exception"),
@@ -71,9 +72,10 @@ plot_var_exceedances <- function(forecasts, path, confidence = 0.99, model = NUL
 #' @export
 plot_simulation_risk <- function(simulation, path) {
   write_png(path, {
-    x <- simulation$portfolio_simple_returns
+    x <- simulation$portfolio_model_returns %||% simulation$portfolio_simple_returns
+    return_type <- simulation$metadata$return_type %||% "simple"
     hist(x, breaks = "FD", col = "#D9EAF1", border = "white", probability = TRUE,
-         xlab = "Portfolio simple return", main = "Copula-based portfolio return simulation")
+         xlab = sprintf("Portfolio %s return", return_type), main = "Copula-based portfolio return simulation")
     for (i in seq_len(nrow(simulation$risk))) abline(v = -simulation$risk$var[i],
       col = c("#CA6702", "#B91C1C")[min(i, 2)], lwd = 2, lty = i)
     legend("topleft", sprintf("%.0f%% VaR", 100 * simulation$risk$confidence),
