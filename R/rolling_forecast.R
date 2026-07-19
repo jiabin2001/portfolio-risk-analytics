@@ -44,8 +44,19 @@ rolling_baseline_forecasts <- function(returns, dates, models, confidence_levels
   returns <- as.numeric(returns); dates <- as.Date(dates)
   if (length(returns) != length(dates)) stop("Returns and dates must have the same length.", call. = FALSE)
   origins <- rolling_origins(length(returns), initial_window, evaluation_observations)
-  existing <- if (resume && !is.null(checkpoint_path) && file.exists(checkpoint_path)) readRDS(checkpoint_path) else NULL
-  if (!is.null(existing) && !is.data.frame(existing)) stop("Rolling checkpoint is not a data frame.", call. = FALSE)
+  fingerprint <- stable_object_md5(list(
+    schema = 2L, returns = returns, dates = as.character(dates), models = models,
+    confidence_levels = confidence_levels, initial_window = initial_window,
+    window_type = window_type, window_size = window_size,
+    evaluation_observations = evaluation_observations
+  ))
+  checkpoint <- if (resume && !is.null(checkpoint_path) && file.exists(checkpoint_path)) readRDS(checkpoint_path) else NULL
+  valid_checkpoint <- is.list(checkpoint) && identical(checkpoint$schema, 2L) &&
+    identical(checkpoint$fingerprint, fingerprint) && is.data.frame(checkpoint$rows)
+  existing <- if (valid_checkpoint) checkpoint$rows else NULL
+  if (!is.null(existing) && nrow(existing)) {
+    existing <- existing[existing$status == "ok", , drop = FALSE]
+  }
   rows <- if (is.null(existing)) list() else split(existing, seq_len(nrow(existing)))
   completed <- if (is.null(existing) || !nrow(existing)) character() else paste(existing$forecast_date, existing$model, existing$confidence, sep = "|")
   for (origin in origins) {
@@ -78,10 +89,41 @@ rolling_baseline_forecasts <- function(returns, dates, models, confidence_levels
       }
       rows[[length(rows) + 1L]] <- row
     }
-    if (!is.null(checkpoint_path)) atomic_save_rds(do.call(rbind, rows), checkpoint_path)
+    if (!is.null(checkpoint_path)) {
+      atomic_save_rds(list(schema = 2L, fingerprint = fingerprint, rows = do.call(rbind, rows)), checkpoint_path)
+    }
   }
   out <- do.call(rbind, rows)
-  out[order(out$forecast_date, out$model, out$confidence), , drop = FALSE]
+  out <- out[order(out$forecast_date, out$model, out$confidence), , drop = FALSE]
+  row.names(out) <- NULL
+  out
+}
+
+#' Fingerprint a rolling copula checkpoint
+#' @keywords internal
+rolling_copula_fingerprint <- function(x, dates, cfg, origins) {
+  stable_object_md5(list(
+    schema = 2L,
+    returns = x,
+    dates = as.character(dates),
+    origins = origins,
+    portfolio = cfg$portfolio[c("weights", "return_type", "allow_short")],
+    risk = cfg$risk$confidence_levels,
+    models = cfg$models,
+    simulation = cfg$simulation[c("rolling_n", "chunk_size", "seed")],
+    rolling = cfg$rolling[c("initial_window", "window_type", "window_size", "evaluation_observations")]
+  ))
+}
+
+#' Read a versioned rolling copula checkpoint
+#' @keywords internal
+read_rolling_copula_checkpoint <- function(path, fingerprint) {
+  if (is.null(path) || !file.exists(path)) return(NULL)
+  value <- readRDS(path)
+  valid <- is.list(value) && identical(value$schema, 2L) &&
+    identical(value$fingerprint, fingerprint) && is.data.frame(value$rows) &&
+    is.list(value$state_history)
+  if (valid) value else NULL
 }
 
 #' Rolling copula-GARCH forecasts
@@ -102,12 +144,35 @@ rolling_copula_garch_forecasts <- function(asset_log_returns, dates, cfg, checkp
   x <- as.matrix(asset_log_returns); dates <- as.Date(dates)
   if (ncol(x) != 2L || nrow(x) != length(dates)) stop("Copula-GARCH rolling forecast currently requires two aligned assets.", call. = FALSE)
   origins <- rolling_origins(nrow(x), cfg$rolling$initial_window, cfg$rolling$evaluation_observations)
-  existing <- if (resume && !is.null(checkpoint_path) && file.exists(checkpoint_path)) readRDS(checkpoint_path) else NULL
+  fingerprint <- rolling_copula_fingerprint(x, dates, cfg, origins)
+  checkpoint <- if (resume) read_rolling_copula_checkpoint(checkpoint_path, fingerprint) else NULL
+  existing <- checkpoint$rows %||% NULL
+  state_history <- checkpoint$state_history %||% list()
+  completed_prefix <- 0L
+  if (!is.null(existing) && nrow(existing)) {
+    for (position in seq_along(origins)) {
+      forecast_date <- dates[origins[[position]] + 1L]
+      date_rows <- existing[as.Date(existing$forecast_date) == forecast_date, , drop = FALSE]
+      complete <- nrow(date_rows) == length(cfg$risk$confidence_levels) &&
+        all(date_rows$status == "ok") && !is.null(state_history[[as.character(position)]])
+      if (!complete) break
+      completed_prefix <- position
+    }
+    retained_dates <- if (completed_prefix) {
+      dates[origins[seq_len(completed_prefix)] + 1L]
+    } else {
+      as.Date(character())
+    }
+    existing <- existing[as.Date(existing$forecast_date) %in% retained_dates, , drop = FALSE]
+    state_history <- state_history[names(state_history) %in% as.character(seq_len(completed_prefix))]
+  }
   rows <- if (is.null(existing)) list() else split(existing, seq_len(nrow(existing)))
   completed_dates <- if (is.null(existing)) as.Date(character()) else as.Date(unique(existing$forecast_date))
   grid <- build_model_grid(cfg$models)
-  selected_specs <- NULL; selected_family <- NULL
-  reselection_frequency <- cfg$models$reselection_frequency %||% cfg$models$refit_frequency %||% 20L
+  prior_state <- if (completed_prefix) state_history[[as.character(completed_prefix)]] else NULL
+  selected_specs <- prior_state$selected_specs %||% NULL
+  selected_family <- prior_state$selected_family %||% NULL
+  reselection_frequency <- cfg$models$reselection_frequency
   for (position in seq_along(origins)) {
     origin <- origins[[position]]
     forecast_date <- dates[origin + 1L]
@@ -116,7 +181,7 @@ rolling_copula_garch_forecasts <- function(asset_log_returns, dates, cfg, checkp
     started <- proc.time()[["elapsed"]]
     warnings_seen <- character()
     result <- tryCatch({
-      reselect <- is.null(selected_specs) || ((position - 1L) %% reselection_frequency == 0L)
+      reselect <- ((position - 1L) %% reselection_frequency == 0L) || is.null(selected_specs)
       marginal_fits <- vector("list", 2L)
       selections <- vector("list", 2L)
       for (j in seq_len(2L)) {
@@ -128,19 +193,24 @@ rolling_copula_garch_forecasts <- function(asset_log_returns, dates, cfg, checkp
         marginal_fits[[j]] <- selection$selected; selections[[j]] <- selection
         if (isTRUE(selection$fallback)) warnings_seen <- c(warnings_seen, selection$warning)
       }
-      if (reselect) selected_specs <- lapply(marginal_fits, function(fit) as.data.frame(fit$spec, stringsAsFactors = FALSE))
+      next_specs <- if (reselect) {
+        lapply(marginal_fits, function(fit) as.data.frame(fit$spec, stringsAsFactors = FALSE))
+      } else {
+        selected_specs
+      }
       pits <- lapply(marginal_fits, function(fit) pit_transform(fit$standardised_residuals,
         fit$spec$distribution, fit$parameters)$values)
       common_n <- min(lengths(pits)); u <- cbind(tail(pits[[1]], common_n), tail(pits[[2]], common_n))
       families <- if (reselect || is.null(selected_family)) cfg$models$copula_families else selected_family
       copula <- fit_copula_candidates(u, families, cfg$models$information_criterion)
       if (is.null(copula$selected)) stop("No copula model available.", call. = FALSE)
-      selected_family <- copula$selected$family
       simulation <- simulate_portfolio_risk(copula$selected, marginal_fits, cfg$portfolio$weights,
         cfg$simulation$rolling_n, cfg$simulation$seed + origin, cfg$simulation$chunk_size,
-        cfg$portfolio$return_type, cfg$risk$confidence_levels)
+        cfg$portfolio$return_type, cfg$risk$confidence_levels,
+        allow_short = cfg$portfolio$allow_short)
       list(marginals = marginal_fits, copula = copula$selected, risk = simulation$risk,
-           reselected = reselect)
+           reselected = reselect, selected_specs = next_specs,
+           selected_family = copula$selected$family)
     }, error = function(e) e)
     runtime <- unname(proc.time()[["elapsed"]] - started)
     realised_simple <- drop(expm1(x[origin + 1L, , drop = FALSE]) %*% cfg$portfolio$weights)
@@ -151,6 +221,8 @@ rolling_copula_garch_forecasts <- function(asset_log_returns, dates, cfg, checkp
       warnings_seen <- c(warnings_seen, conditionMessage(result)); reselected <- NA
     } else {
       risk_rows <- result$risk
+      selected_specs <- result$selected_specs
+      selected_family <- result$selected_family
       marginal_names <- paste(vapply(result$marginals, `[[`, character(1), "model_id"), collapse = ";")
       copula_name <- result$copula$family; status <- "ok"; reselected <- result$reselected
     }
@@ -164,12 +236,26 @@ rolling_copula_garch_forecasts <- function(asset_log_returns, dates, cfg, checkp
       stringsAsFactors = FALSE
     )
     rows <- c(rows, split(new_rows, seq_len(nrow(new_rows))))
-    if (!is.null(checkpoint_path)) atomic_save_rds(do.call(rbind, rows), checkpoint_path)
+    state_history[[as.character(position)]] <- list(
+      selected_specs = selected_specs,
+      selected_family = selected_family
+    )
+    if (!is.null(checkpoint_path)) {
+      atomic_save_rds(list(
+        schema = 2L,
+        fingerprint = fingerprint,
+        rows = do.call(rbind, rows),
+        state_history = state_history
+      ), checkpoint_path)
+    }
     if (is.function(progress_callback)) {
       progress_callback(list(position = position, total = length(origins),
                              forecast_date = forecast_date, status = status,
                              runtime_seconds = runtime))
     }
   }
-  do.call(rbind, rows)
+  out <- do.call(rbind, rows)
+  out <- out[order(out$forecast_date, out$confidence), , drop = FALSE]
+  row.names(out) <- NULL
+  out
 }

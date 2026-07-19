@@ -4,12 +4,14 @@
 \alias{risk_by_confidence}
 \title{Calculate risk measures for multiple confidence levels}
 \usage{
-risk_by_confidence(returns, confidence_levels = c(0.95, 0.99))
+risk_by_confidence(returns, confidence_levels = c(0.95, 0.99), type = 7L)
 }
 \arguments{
 \item{returns}{Numeric returns.}
 
 \item{confidence_levels}{Vector of confidence levels.}
+
+\item{type}{Quantile algorithm.}
 }
 \description{
 Calculate risk measures for multiple confidence levels

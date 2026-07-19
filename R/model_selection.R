@@ -16,10 +16,13 @@ select_marginal_model <- function(fits, diagnostic_alpha = 0.01, criterion = c("
     residual_p <- if (diag_ok) diag$residual_ljung_box_p_value else NA_real_
     squared_p <- if (diag_ok) diag$squared_ljung_box_p_value else NA_real_
     pit_p <- if (diag_ok) diag$pit_ks_p_value else NA_real_
-    passed <- identical(fit$status, "ok") && diag_ok && residual_p >= diagnostic_alpha &&
-      squared_p >= diagnostic_alpha && pit_p >= diagnostic_alpha
+    finite_diagnostics <- all(is.finite(c(residual_p, squared_p, pit_p)))
+    passed <- identical(fit$status, "ok") && diag_ok && finite_diagnostics &&
+      residual_p >= diagnostic_alpha && squared_p >= diagnostic_alpha && pit_p >= diagnostic_alpha
     reason <- if (!identical(fit$status, "ok")) fit$error %||% "fit_failed" else if (!diag_ok) {
       if (inherits(diag, "diagnostic_error")) diag$error else "diagnostics_unavailable"
+    } else if (!finite_diagnostics) {
+      "non_finite_diagnostics"
     } else paste(c(if (residual_p < diagnostic_alpha) "residual_autocorrelation",
                    if (squared_p < diagnostic_alpha) "remaining_arch",
                    if (pit_p < diagnostic_alpha) "pit_nonuniform"), collapse = ";")
@@ -46,6 +49,19 @@ select_marginal_model <- function(fits, diagnostic_alpha = 0.01, criterion = c("
     eligible <- which(table$convergence & table$parameter_valid & is.finite(table[[criterion_col]]))
     fallback <- TRUE
     warning_message <- "No candidate passed all diagnostics; selected the best converged IC-ranked fallback."
+  }
+  if (length(eligible) > 1L && all(table$engine[eligible] == "native_two_step")) {
+    orders <- unique(table[eligible, c("arma_p", "arma_q"), drop = FALSE])
+    orders <- orders[order(orders$arma_p + orders$arma_q, orders$arma_p, orders$arma_q), , drop = FALSE]
+    selected_order <- orders[1L, ]
+    eligible <- eligible[
+      table$arma_p[eligible] == selected_order$arma_p & table$arma_q[eligible] == selected_order$arma_q
+    ]
+    native_warning <- sprintf(
+      "Native two-step IC comparison was restricted to ARMA(%d,%d); IC values across ARMA orders are approximate.",
+      selected_order$arma_p, selected_order$arma_q
+    )
+    warning_message <- paste(na.omit(c(warning_message, native_warning)), collapse = " ")
   }
   if (!length(eligible)) {
     table$rank <- NA_integer_; table$selected <- FALSE

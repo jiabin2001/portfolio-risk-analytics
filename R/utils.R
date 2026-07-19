@@ -56,20 +56,6 @@ ensure_project_dirs <- function(root = pra_project_root()) {
   paths
 }
 
-#' Return a safe worker count
-#' @param requested Optional configured count.
-#' @param detected Detected logical cores (injectable for tests).
-#' @export
-safe_worker_count <- function(requested = NULL, detected = parallel::detectCores(logical = TRUE)) {
-  if (!is.finite(detected) || detected < 1) detected <- 1L
-  cap <- max(1L, min(floor(detected / 2), detected - 2L))
-  if (is.null(requested)) return(as.integer(cap))
-  if (length(requested) != 1L || !is.numeric(requested) || !is.finite(requested) || requested < 1) {
-    stop("`requested` workers must be a positive integer or NULL.", call. = FALSE)
-  }
-  as.integer(min(requested, cap))
-}
-
 #' Time an expression
 #' @param expr Expression to evaluate.
 #' @return List with value and elapsed seconds.
@@ -78,6 +64,38 @@ time_stage <- function(expr) {
   started <- proc.time()[["elapsed"]]
   value <- force(expr)
   list(value = value, elapsed_seconds = unname(proc.time()[["elapsed"]] - started))
+}
+
+#' Evaluate code with a deterministic seed without changing caller RNG state
+#' @keywords internal
+with_preserved_seed <- function(seed, code) {
+  if (is.null(seed)) return(force(code))
+  assert_scalar(seed, "seed", "numeric")
+  if (seed < 0 || seed > .Machine$integer.max || seed != floor(seed)) {
+    stop("`seed` must be a non-negative integer within R's supported range.", call. = FALSE)
+  }
+  old_kind <- RNGkind()
+  had_seed <- exists(".Random.seed", envir = .GlobalEnv, inherits = FALSE)
+  if (had_seed) old_seed <- get(".Random.seed", envir = .GlobalEnv, inherits = FALSE)
+  on.exit({
+    do.call(RNGkind, as.list(old_kind))
+    if (had_seed) {
+      assign(".Random.seed", old_seed, envir = .GlobalEnv)
+    } else if (exists(".Random.seed", envir = .GlobalEnv, inherits = FALSE)) {
+      rm(".Random.seed", envir = .GlobalEnv)
+    }
+  }, add = TRUE)
+  set.seed(as.integer(seed))
+  force(code)
+}
+
+#' Stable MD5 for a serialisable R object
+#' @keywords internal
+stable_object_md5 <- function(object) {
+  path <- tempfile("pra-fingerprint-", fileext = ".rds")
+  on.exit(unlink(path), add = TRUE)
+  saveRDS(object, path, version = 2, compress = FALSE)
+  unname(tools::md5sum(path))
 }
 
 #' Stable log helper
@@ -97,7 +115,8 @@ xlogy <- function(x, y) {
 #' @export
 atomic_save_rds <- function(object, path) {
   dir.create(dirname(path), recursive = TRUE, showWarnings = FALSE)
-  tmp <- paste0(path, ".tmp")
+  tmp <- tempfile(paste0(basename(path), "."), tmpdir = dirname(path))
+  on.exit(unlink(tmp), add = TRUE)
   saveRDS(object, tmp)
   if (file.exists(path)) unlink(path)
   if (!file.rename(tmp, path)) stop("Could not atomically move checkpoint into place.", call. = FALSE)

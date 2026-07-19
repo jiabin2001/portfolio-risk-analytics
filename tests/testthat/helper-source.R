@@ -22,13 +22,13 @@ make_test_config <- function() list(
     arma_p = 0, arma_q = 0, garch_orders = list(c(1, 1)),
     volatility_families = "sGARCH", distributions = "norm", information_criterion = "BIC",
     diagnostic_alpha = 0.01, solver = "hybrid", timeout_seconds = 30,
-    refit_frequency = 10, reselection_frequency = 20, copula_families = "gaussian"
+    reselection_frequency = 20, copula_families = "gaussian"
   ),
   simulation = list(final_n = 1000, rolling_n = 1000, chunk_size = 1000,
                     seed = 20260718, keep_asset_returns = FALSE),
-  rolling = list(enabled = TRUE, window_type = "moving", initial_window = 180,
+  rolling = list(window_type = "moving", initial_window = 180,
                  window_size = 180, evaluation_observations = 5,
                  models = c("historical", "gaussian"), checkpoint = TRUE),
-  compute = list(parallel = FALSE, workers = 1, resume = TRUE),
-  report = list(render = FALSE, format = "html")
+  compute = list(resume = TRUE),
+  report = list(render = FALSE)
 )
