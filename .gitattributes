@@ -3,3 +3,6 @@
 *.png binary
 *.pdf binary
 *.rds binary
+
+# Preserve generated CSV bytes so manifest checksums survive checkout on any OS.
+outputs/tables/*.csv -text whitespace=blank-at-eol,blank-at-eof,space-before-tab,cr-at-eol

@@ -27,7 +27,8 @@ so their estimates and ranks should not be interpreted as validated weekly resul
 
 ## Run
 
-R >= 4.2 is required; the checked environment uses R 4.5.1.
+Use **R 4.5.1** to reproduce the checked environment. The package declares R >= 4.2,
+but the full dependency lock includes packages requiring R >= 4.4.
 
 ```r
 install.packages("renv")
@@ -36,6 +37,12 @@ source("scripts/run_tests.R")
 source("scripts/run_smoke_test.R")
 source("scripts/run_validation.R")
 source("scripts/run_full_analysis.R")
+```
+
+Verify the committed results without restoring packages or downloading data:
+
+```sh
+Rscript --vanilla scripts/audit_outputs.R
 ```
 
 Smoke uses explicitly synthetic fixtures. Validation and full profiles use real Yahoo
@@ -62,6 +69,14 @@ runtime and complexity ranking. Loss ranks describe this sample only.
 
 ## Generated evidence
 
+The validated run covers **520 weekly forecast dates (2016-01-15 to 2025-12-26)**:
+11 models, two confidence levels and **11,440 successful forecast rows**.
+Copula-GARCH's observed quantile losses are 2.12% and 6.80% lower than GARCH-t at
+95% and 99% confidence. However, all four quantile/FZ0 loss-difference intervals
+cross zero, with Holm-adjusted p-values of 1. This experiment does **not establish
+incremental predictive value over GARCH-t**. See [STATUS.md](STATUS.md) for the
+numerical evidence and validation record.
+
 ![Rolling 99% VaR](outputs/figures/rolling_var_exceedances.png)
 
 ![Common-date forecast comparison](outputs/figures/model_comparison.png)
@@ -77,8 +92,11 @@ Key tables under `outputs/tables/`:
 
 `STATUS.md` records completed validation. Each run also archives its frozen price
 snapshot, YAML, session information, tables and figures under ignored
-`outputs/runs/<run_id>/`. Raw provider data are not redistributed. Re-downloading
-historical data can change results; `renv.lock` freezes software, not market data.
+`outputs/runs/<run_id>/`. Full raw downloads and binary snapshots remain local;
+the committed valuation audit includes the weekly prices and their quote dates.
+Generated CSV bytes are preserved in Git so manifest checksums survive checkout.
+Re-downloading historical data can change results; `renv.lock` freezes software,
+not market data.
 
 ## Conventions and limitations
 

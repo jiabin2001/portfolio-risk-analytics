@@ -248,6 +248,92 @@ show_columns(predictive, c("model", "reference_model", "confidence", "score_type
                           "observations", "mean_loss_difference", "ci_lower", "ci_upper"), digits = 7)
 ```
 
+```{r}
+#| label: fig-paired-uncertainty
+#| fig-width: 12
+#| fig-height: 9
+#| fig-cap: "Mean score differences relative to the reference model. Negative values favour the model. Bars show the reported marginal bootstrap intervals (95% by default), not simultaneous intervals. Open points have no available interval; they retain the observed mean only. Interval colours do not encode Holm-adjusted p-values."
+plot_paired_uncertainty <- function(x) {
+  previous <- par(no.readonly = TRUE)
+  on.exit(par(previous), add = TRUE)
+  if (!nrow(x)) {
+    plot.new()
+    text(0.5, 0.55, "No paired predictive comparisons", cex = 1.2)
+    text(0.5, 0.45, "No uncertainty interval is available for this run.", col = "#52616B")
+    return(invisible(NULL))
+  }
+  metrics <- c("quantile_loss", "joint_var_es")
+  levels <- sort(unique(x$confidence[is.finite(x$confidence)]))
+  if (!length(levels)) {
+    plot.new()
+    text(0.5, 0.5, "No valid confidence levels in the paired comparisons.")
+    return(invisible(NULL))
+  }
+  par(mfrow = c(length(metrics), length(levels)), mar = c(4.5, 10, 4.2, 1.2),
+      oma = c(2.5, 0, 1, 0), mgp = c(2.8, 0.7, 0), tcl = -0.25)
+  models <- sort(unique(as.character(x$model)))
+  labels <- gsub("_", " ", models, fixed = TRUE)
+  interval_ok <- function(z) z$status == "ok" & is.finite(z$ci_lower) &
+    is.finite(z$ci_upper) & is.finite(z$mean_loss_difference)
+  for (metric in metrics) {
+    metric_rows <- x[x$score_type == metric, , drop = FALSE]
+    valid_intervals <- interval_ok(metric_rows)
+    values <- c(0, metric_rows$mean_loss_difference,
+                metric_rows$ci_lower[valid_intervals], metric_rows$ci_upper[valid_intervals])
+    limits <- range(values[is.finite(values)])
+    width <- diff(limits)
+    if (!is.finite(width) || width == 0) width <- max(abs(limits), 1e-6)
+    limits <- limits + c(-1, 1) * 0.08 * width
+    metric_label <- if (metric == "quantile_loss") "Quantile loss" else "Joint VaR/ES score"
+    for (level in levels) {
+      panel <- metric_rows[metric_rows$confidence == level, , drop = FALSE]
+      title_text <- sprintf("%s | %.1f%% forecast confidence", metric_label, 100 * level)
+      if (!nrow(panel) || !any(is.finite(panel$mean_loss_difference))) {
+        plot.new()
+        title(main = title_text, cex.main = 0.9)
+        text(0.5, 0.55, "No eligible paired score observations", cex = 0.9)
+        text(0.5, 0.43, "Inference is unavailable.", cex = 0.85, col = "#52616B")
+        next
+      }
+      y <- length(models) + 1L - match(panel$model, models)
+      plot(NA_real_, NA_real_, xlim = limits, ylim = c(0.4, length(models) + 0.6),
+           xlab = "Mean score difference (model - reference)", ylab = "", axes = FALSE)
+      abline(h = seq_along(models), col = "#EDF0F2", lwd = 0.8)
+      abline(v = 0, col = "#73808C", lty = 2, lwd = 1)
+      ticks <- pretty(limits, n = 4)
+      axis(1, at = ticks, labels = format(ticks, scientific = TRUE, digits = 2, trim = TRUE), cex.axis = 0.8)
+      axis(2, at = rev(seq_along(models)), labels = labels, las = 1, tick = FALSE, cex.axis = 0.85)
+      box(col = "#C6CED3")
+      available <- interval_ok(panel)
+      if (any(available)) {
+        segments(panel$ci_lower[available], y[available], panel$ci_upper[available], y[available],
+                 col = "#244A64", lwd = 1.7)
+        segments(panel$ci_lower[available], y[available] - 0.12,
+                 panel$ci_lower[available], y[available] + 0.12, col = "#244A64")
+        segments(panel$ci_upper[available], y[available] - 0.12,
+                 panel$ci_upper[available], y[available] + 0.12, col = "#244A64")
+      }
+      finite <- is.finite(panel$mean_loss_difference)
+      points(panel$mean_loss_difference[finite], y[finite], pch = ifelse(available[finite], 19, 1),
+             col = "#244A64", cex = 0.8)
+      if (any(!finite)) text(limits[[2]], y[!finite], "unavailable", adj = 1,
+                            cex = 0.75, col = "#73808C")
+      title(main = title_text, cex.main = 0.9)
+      interval_levels <- unique(panel$confidence_interval[available])
+      interval_label <- if (length(interval_levels) == 1L) {
+        sprintf("%.1f%% marginal intervals", 100 * interval_levels)
+      } else if (length(interval_levels)) "Reported marginal intervals" else "Intervals unavailable"
+      mtext(sprintf("Reference: %s | %s", paste(unique(panel$reference_model), collapse = ", "),
+                    interval_label), side = 3, line = 0.35, cex = 0.7, col = "#52616B")
+    }
+  }
+  mtext("Lower differences favour the model; zero means equal observed mean loss.",
+        side = 1, outer = TRUE, line = 1, cex = 0.9)
+  invisible(NULL)
+}
+plot_paired_uncertainty(predictive)
+```
+
 Differences are **model minus reference**: negative values favour the model. The circular
 block bootstrap resamples paired score differences to retain local serial dependence.
 It reports percentile intervals and centred two-sided bootstrap p-values, with Holm

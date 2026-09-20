@@ -1,5 +1,8 @@
 # Refactor Plan
 
+> Historical v0.1 implementation plan. Current behaviour, risk conventions and
+> validation evidence are documented in README.md, STATUS.md and the v0.2 report.
+
 ## 1. Initial repository audit
 
 The working directory started without a Git history or public project files. Excluded

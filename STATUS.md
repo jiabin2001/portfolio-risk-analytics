@@ -1,142 +1,120 @@
 # Project Status
 
-Last updated: 2026-07-19 Europe/London
+Updated: 2026-09-21 (Asia/Shanghai). Version 0.2.0.
 
-## Completed
+## Verified implementation
 
-- Independent package-style implementation with configuration, data, returns, baseline,
-  marginal, PIT, copula, simulation, rolling, backtesting, comparison, plotting, and
-  reporting modules.
-- Project-local `renv` library/cache/sandbox configuration and consistent `renv.lock`.
-- Raw, processed, and dependency-aware cache artefacts kept in separate project directories.
-- Synthetic fixture smoke run plus real-data validation and full-profile runs.
-- Roxygen documentation and generated `NAMESPACE`/`man/` pages.
-- GitHub Actions workflow, MIT licence, contribution guide, Quarto report, and README.
-- Portable Quarto 1.9.38 verified by SHA-256 and kept under ignored `tools/`; HTML report rendered.
+- Calendar-safe Friday valuations retain holiday weeks and expose actual quote dates.
+- Exact empirical ES tail mass, signed risk estimates and explicit FZ0 domain accounting.
+- Common-date scoring, gap-preserving coverage tests and failure-aware checkpoints.
+- Portfolio GARCH-t benchmark, four shared-marginal copula ablations, and paired block-bootstrap inference.
+- Frozen local input archives, source/configuration identifiers and checksummed public outputs.
+- Base-R artifact auditing runs in CI; CSV byte preservation keeps hashes portable.
 
-## Tested
+## Validation
 
-- Network-free test suite: **116 expectations passed, 0 failed, 0 errors**, repeated after
-  the full-profile output and documentation refresh.
-- Final standard `R CMD check --no-manual`: **Status: OK** (0 errors, 0 warnings, 0 notes).
-- Installed-package tests also pass inside `R CMD check`.
-- The post-remediation GitHub Actions workflow passes dependency restore, unit tests,
-  `R CMD check --as-cran`, and lint on Ubuntu with R 4.5.1.
-- Copula-GARCH checkpoint audit: first run wrote four rows for two origins; resumed run
-  left the checkpoint timestamp unchanged and all first-run rows had `status = ok`.
-- Review-specific regression coverage includes configured return-space consistency,
-  copula fallback, complete cache identity, short-selling enforcement, checkpoint resume,
-  failed-row retry, exact Student-t centring, non-finite diagnostics, and RNG isolation.
+- **340 expectations passed** with native engines and with production dependencies.
+- **R CMD check --no-manual --no-vignettes: Status OK**, with no errors, warnings or notes.
+- Installed-package tests passed as part of R CMD check.
+- Production smoke pipeline passed; 40 origins and four benchmarks produced 320 rows.
+- Deleting a generated figure and rerunning targets regenerated it through its producing target.
+- A copula-only simple-return run with independence/Gaussian ablations passed; disabling every model fails early.
+- Corrupt output checksums, changed byte counts, path traversal and mixed run identifiers are rejected by the artifact audit.
+- The full real-data run and HTML report below completed successfully.
 
-## Smoke results
+The package check used R 4.5.1 on Windows. See GitHub Actions for the independently
+executed Linux check; local results are not a claim about an unobserved CI run.
 
-- Profile: explicitly synthetic two-asset fixture; not real market data.
-- Runtime: **7.795 seconds**.
-- Marginal engine: `rugarch`; copula candidates through `VineCopula`.
-- Selected copula: Gumbel.
-- 2,000-draw current risk: 95% VaR **0.019241**, 95% ES **0.025206**;
-  99% VaR **0.027122**, 99% ES **0.035287**.
-- Rolling evaluation: 40 origins, four benchmark models, two confidence levels
-  (320 common-schema forecast rows).
+## Full experiment
 
-## Validation profile
+Run: `full_20260920T230325.621650_26556`.
 
-The earlier operational validation run predated the configured-return-space correction,
-so its risk snapshot is intentionally not presented as a current verified result. The
-post-remediation full profile below covers the broader model grid, larger simulation, and
-all benchmark plus copula-GARCH rolling paths.
+Model source: `3ccf0d4abd4375152f614cd2a94a2a7b68c795b8` (clean model source at run start).
+Later publication changes update documentation, report rendering, entry-point
+checks and publication/CI; they do not change fitted models or scores.
 
-## Full-run results
+- Pipeline elapsed wall time: **1455 seconds** (excluding report rendering).
+- **1356** Friday valuations, 2000-01-07 through 2025-12-26; all return intervals are seven days.
+- **83** quotes predate their Friday cutoff; maximum quote age is **4** calendar days.
+- Equal-weight FTSE/S&P 500 local-index log returns, without FX conversion or transaction costs.
+- Moving estimation window: 520 observations; specification reselection every 65 origins.
+- Out-of-sample dates: **2016-01-15 through 2025-12-26**, across **520 origins**.
+- **11 models x 2 confidence levels = 11,440 forecast rows; 0 failures.**
+- Current simulation: 100,000 draws; rolling simulation: 10,000 draws per model/origin.
+- Comparative inference: 1,999 paired circular-block resamples, 13-week blocks, GARCH-t reference.
+- Current marginal grid: 48 candidates, 48 converged, 42 passed diagnostic screening.
+- Current copula grid: 6 fitted candidates; BIC selected **BB1**.
 
-Completed successfully as run `full_20260718T132533` in **7,634.207 wall-clock seconds**.
-The host suspended execution for approximately one hour during the first rolling origin;
-the run resumed in place without restart, and the R process accumulated approximately
-3,723 CPU seconds. The run
-used 1,338 aligned weekly observations from 2000-01-07 through 2025-12-30 and local-index-
-return mode with no FX conversion.
+Selected current marginal specifications:
 
-- Marginal grid: **1,080/1,080 converged** and **648** passed every configured diagnostic.
-- Selected FTSE marginal: `ARMA(0,0)-eGARCH(1,1)-sstd`.
-- Selected S&P 500 marginal: `ARMA(0,1)-eGARCH(2,1)-sstd`.
-- Copulas: 6/6 fitted; BIC selected BB1 with Kendall tau **0.485844**,
-  lower-tail dependence **0.544908**, and upper-tail dependence **0.343948**.
-- 100,000-draw log-return risk: 95% VaR **0.022775**, 95% ES **0.032362**;
-  99% VaR **0.038186**, 99% ES **0.048084**.
-- Monte Carlo convergence: seven sample sizes from 1,000 to 100,000, five seeds, and two
-  confidence levels produced 70 detail rows and 14 summary rows.
-- Rolling evaluation: 260 forecast origins, six models, two confidence levels, and
-  **3,120/3,120 successful forecast rows** with zero model failures.
-- Composite rank at 95%: copula-GARCH first, 10 exceptions (3.846%), conditional-coverage
-  p-value 0.4510, mean quantile loss 0.002112, and green coverage status.
-- Composite rank at 99%: Gaussian first, 3 exceptions (1.154%), conditional-coverage
-  p-value 0.0620, mean quantile loss 0.000668, and green coverage status.
-- The dependency-fingerprint caches and schema-aware rolling checkpoints completed
-  without restart; all 3,120 forecast rows have `status = ok`.
+- `^FTSE`: `arma00_egarch11_sstd`.
+- `^GSPC`: `arma01_egarch11_sstd`.
 
-## Failed or skipped models
+## Comparative evidence
 
-- Full: zero convergence failures; 432 converged candidates failed one or more diagnostic
-  validity constraints and remain visible with rejection reasons.
-- No copula or rolling forecast candidate failed in the full profile.
-- Native fallback supports only normal/Student-t sGARCH/eGARCH(1,1); other native
-  candidates are structured failures when production packages are unavailable.
+Differences below are copula-GARCH minus portfolio GARCH-t; lower is better.
+All comparisons use the same 520 dates. Intervals are marginal 95% percentile
+intervals; Holm p-values adjust the 40 comparisons in this run.
 
-## Known warnings
+| Forecast confidence | Score | Mean difference | 95% interval | Holm p-value |
+| --- | --- | ---: | --- | ---: |
+| 95% | quantile_loss | -5.1347e-05 | [-0.00024269, 0.00010879] |      1 |
+| 95% | joint_var_es | -0.059839 | [-0.20648, 0.057643] |      1 |
+| 99% | quantile_loss | -5.5452e-05 | [-0.00017518, 4.6186e-05] |      1 |
+| 99% | joint_var_es | -0.16564 | [-0.4793, 0.084433] |      1 |
 
-- Weekly `xts` aggregation reports that missing source observations were removed; final
-  common-date alignment and sample bounds are validated.
-- `testthat` 3.3.2 was built under R 4.5.3 while the runtime is R 4.5.1; all tests pass.
-- The first `--as-cran` check could not perform CRAN incoming network checks in the
-  sandbox. The subsequent standard package check completed with `Status: OK`.
-- The full-run copula-GARCH `runtime_seconds` value (**6,668.38**) is elapsed wall-clock
-  time and includes the disclosed host suspension; it is not CPU time. Its 0.1-weighted
-  runtime rank did not change the 95% first-place composite result.
-- GitHub Actions passes but reports a non-blocking Node 20 deprecation annotation for
-  `actions/checkout@v4` and non-blocking configured style-lint annotations.
+All four intervals cross zero and none of these comparisons is significant after
+Holm adjustment. Observed copula losses are lower, but this sample does not establish
+superiority over GARCH-t. Ranks are descriptive; a large coverage-test p-value does
+not prove calibration, and an interval crossing zero does not establish equivalence.
 
-## Known limitations
+The full benchmark, copula-ablation, coverage and loss tables are committed under
+`outputs/tables/`. The report also displays uncertainty intervals and convergence.
 
-- The validated cross-index example is in local-index-return mode and is not an
-  FX-adjusted investable base-currency portfolio.
-- Copula simulation is currently bivariate, although data and return functions accept
-  arbitrary asset counts.
-- Expected Shortfall evaluation is descriptive plus a joint VaR/ES scoring rule; it is
-  not presented as a formal ES hypothesis test.
-- Rolling copula-GARCH refits each selected specification at every origin for statistical
-  integrity; this is deliberately compute intensive.
-- Periodic rebalancing and transaction costs are interfaces for future work, not current
-  production features.
+## Current risk snapshot
 
-## Runtime and dependencies
+Conditional on the last valuation date; these estimates are separate from historical
+out-of-sample validation. Values are log-return loss units.
 
-R 4.5.1. Principal versions: `rugarch` 1.5-5, `VineCopula` 2.6.1, `quantmod`
-0.4-29, `targets` 1.12.0, `testthat` 3.3.2, `yaml` 2.3.12, `renv` 1.2.3,
-`R.utils` 2.13.0, and `rmarkdown` 2.31. Execution is sequential and no GPU path is used.
+| Confidence | VaR | ES |
+| --- | ---: | ---: |
+| 95% | 0.023773 | 0.033751 |
+| 99% | 0.039798 | 0.050228 |
 
-## Outputs generated
+## Reproducibility and limits
 
-- Six full-profile PNG figures under `outputs/figures/`, including Monte Carlo convergence.
-- Nine full-profile CSV tables under `outputs/tables/`, including convergence detail and
-  summary, rolling forecasts, model comparison, and the output manifest.
-- `report/portfolio_risk_analytics.html` rendered from generated outputs.
-- Structured logs under ignored `outputs/logs/`, models under ignored `outputs/models/`,
-  and resumable checkpoints under ignored `outputs/checkpoints/`.
+- Input hash: `393ba7a66ae763f552ba3c4aa4318c4e`.
+- Aligned-price hash: `a257a5edae9f0e9be918a718df8c30f9`.
+- Configuration hash: `f5490b2ab328a0b391e19c6e7009ba1e`.
+- Implementation hash: `e1cd44936a463048ea6ae800572d2411`.
+- Software: R 4.5.1, rugarch 1.5.6, VineCopula 2.6.1, quantmod 0.4.29; see renv.lock for the full environment.
+- Quarto 1.9.38 rendered the HTML report from hash-verified outputs.
+- Local archives retain the frozen inputs, configuration, session information and complete generated outputs.
+- Public artifacts include weekly valuation prices and quote dates; full raw downloads and binary snapshots remain local.
+- Re-downloading historical prices may change results. The software lock does not freeze provider data.
 
-## Remaining tasks
+This is a bivariate research framework. It omits FX acquisition, a holdings ledger,
+execution costs and operational production controls. Residual screening and
+fitted-sample PIT diagnostics are not proofs of correct specification. The bootstrap
+assumes sufficiently stable loss differences and does not adjust for tuning on the
+holdout. Even 520 weeks offer limited information about rare 99% exceptions.
 
-- No required implementation or verification task remains.
-- Optionally reduce the remaining non-functional style lints and upgrade
-  `actions/checkout` after confirming the preferred Node 24-compatible major version.
+**The v0.1 output and composite-ranking claims are superseded** because their
+exact-date join omitted holiday weeks and produced inconsistent return horizons.
 
-## Exact reproduction commands
+## Reproduction
 
-```powershell
+Use R 4.5.1. Install Quarto, or keep a portable executable under `tools/`, for HTML.
+
+```sh
+Rscript --vanilla scripts/audit_outputs.R
 Rscript -e "renv::restore()"
 Rscript scripts/run_tests.R
 Rscript scripts/run_smoke_test.R
-Rscript scripts/run_validation.R
 Rscript scripts/run_full_analysis.R
-Rscript scripts/render_report.R
 R CMD build .
-R CMD check --no-manual portfoliorisk_0.1.0.tar.gz
+R CMD check --no-manual --no-vignettes portfoliorisk_0.2.0.tar.gz
 ```
+
+Smoke/full runs replace the active output tables; each completed run retains its
+own local archive. `scripts/render_report.R` rerenders the current verified outputs.

@@ -13,6 +13,7 @@
 - Strengthen cache/checkpoint identities and recovery; support empty baselines and
   correct realised simple-return rolling aggregation.
 - Archive inputs and provenance, checksum outputs, and repair targets dependencies.
+- Preserve generated CSV bytes across Git checkouts and audit committed artifacts in CI.
 - Supersede irregular-horizon v0.1 results; replace heuristic composite ranking with
   separate predictive scores and runtime reporting.
 

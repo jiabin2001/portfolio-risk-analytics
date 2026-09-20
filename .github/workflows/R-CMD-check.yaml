@@ -16,6 +16,8 @@ jobs:
         with:
           r-version: '4.5.1'
           use-public-rspm: true
+      - name: Audit committed output artifacts
+        run: Rscript --vanilla scripts/audit_outputs.R
       - name: Install system dependencies
         run: |
           sudo apt-get update

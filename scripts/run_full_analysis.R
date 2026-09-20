@@ -3,6 +3,11 @@ script_dir <- if (length(script_arg)) dirname(normalizePath(sub("^--file=", "", 
 source(file.path(script_dir, "bootstrap.R"))
 setwd(.PRA_PROJECT_ROOT)
 
+required <- c("rugarch", "VineCopula", "quantmod")
+available <- vapply(required, requireNamespace, logical(1), quietly = TRUE)
+if (!all(available)) stop(sprintf("The full profile requires %s. Run renv::restore() first.",
+  paste(required[!available], collapse = ", ")), call. = FALSE)
+
 started <- Sys.time()
 result <- run_analysis("config/full.yml", run_copula_rolling = TRUE)
 cat(sprintf("Full run completed: %s\n", result$run_id))

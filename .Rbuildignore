@@ -4,6 +4,7 @@
 ^\.Rprofile$
 ^_reference$
 ^_targets\.R$
+^_targets$
 ^CHANGELOG\.md$
 ^CONTRIBUTING\.md$
 ^LICENSE\.md$

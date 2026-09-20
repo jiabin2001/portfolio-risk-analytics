@@ -92,6 +92,18 @@ render_analysis_report <- function(source = "report/portfolio_risk_analytics.qmd
   if (!nzchar(quarto)) stop("Install Quarto or place a portable build under tools/ to render the report.", call. = FALSE)
   source <- if (is_absolute_data_path(source)) source else file.path(root, source)
   if (!file.exists(file.path(root, "outputs", "tables", "output_manifest.csv"))) stop("Run the analysis before rendering.", call. = FALSE)
+  if (.Platform$OS.type == "windows") {
+    # Quarto copies cached CSS into the report. An EFS-encrypted user cache cannot
+    # be copied to an unencrypted volume; keep this child-process cache with the project.
+    cache <- file.path(root, "tools", "quarto-local-cache")
+    dir.create(cache, recursive = TRUE, showWarnings = FALSE)
+    previous_appdata <- Sys.getenv("LOCALAPPDATA", unset = NA_character_)
+    on.exit({
+      if (is.na(previous_appdata)) Sys.unsetenv("LOCALAPPDATA") else
+        Sys.setenv(LOCALAPPDATA = previous_appdata)
+    }, add = TRUE)
+    Sys.setenv(LOCALAPPDATA = normalizePath(cache, winslash = "/", mustWork = TRUE))
+  }
   status <- system2(quarto, c("render", shQuote(source), "--to", "html"))
   if (!identical(status, 0L)) stop("Quarto rendering failed.", call. = FALSE)
   normalizePath(sub("[.]qmd$", ".html", source), winslash = "/", mustWork = TRUE)
