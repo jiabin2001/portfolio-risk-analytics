@@ -16,7 +16,7 @@ generate_fixture_prices(
 
 \item{n}{Number of weekly observations.}
 
-\item{start}{First date.}
+\item{start}{Earliest date; the first observation is the Friday on or after it.}
 
 \item{seed}{Random seed.}
 }

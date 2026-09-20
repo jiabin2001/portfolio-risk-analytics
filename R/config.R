@@ -57,6 +57,11 @@ validate_config <- function(cfg) {
   require_flag(cfg$data$cache, "data.cache")
   require_flag(cfg$data$force_refresh, "data.force_refresh")
   require_integer(cfg$data$min_observations, "data.min_observations", 30L)
+  if (!is.null(cfg$data$max_stale_days)) {
+    require_integer(cfg$data$max_stale_days, "data.max_stale_days")
+    if (cfg$data$max_stale_days > 4L) stop("Weekly prices must come from the same trading week (max_stale_days <= 4).", call. = FALSE)
+  }
+  if (anyDuplicated(cfg$data$tickers)) stop("Tickers must be unique.", call. = FALSE)
   if (cfg$data$source == "fixture") {
     require_fields(cfg$data, c("fixture_observations", "fixture_seed"), "data")
     require_integer(cfg$data$fixture_observations, "data.fixture_observations", cfg$data$min_observations)
@@ -141,11 +146,28 @@ validate_config <- function(cfg) {
   require_integer(cfg$rolling$initial_window, "rolling.initial_window", 50L)
   require_integer(cfg$rolling$window_size, "rolling.window_size", 30L)
   require_integer(cfg$rolling$evaluation_observations, "rolling.evaluation_observations", 1L)
-  valid_rolling <- c("historical", "gaussian", "student_t", "ewma", "filtered_historical", "copula_garch")
+  valid_rolling <- c("historical", "gaussian", "student_t", "ewma", "filtered_historical", "garch_t", "copula_garch")
   if (!length(cfg$rolling$models) || any(!cfg$rolling$models %in% valid_rolling)) {
     stop("Unsupported model in `rolling.models`.", call. = FALSE)
   }
   require_flag(cfg$rolling$checkpoint, "rolling.checkpoint")
+  if (!is.null(cfg$rolling$copula_ablations)) {
+    if (any(!cfg$rolling$copula_ablations %in% c("independence", "gaussian", "student", "bb1")) ||
+        anyDuplicated(cfg$rolling$copula_ablations)) stop("Invalid or duplicated rolling.copula_ablations.", call. = FALSE)
+    if (length(cfg$rolling$copula_ablations) && !"copula_garch" %in% cfg$rolling$models) {
+      stop("Copula ablations require rolling.models to include copula_garch.", call. = FALSE)
+    }
+  }
+  if ("garch_t" %in% cfg$rolling$models && min(cfg$rolling$initial_window, cfg$rolling$window_size) < 100L) {
+    stop("garch_t requires at least 100 training observations.", call. = FALSE)
+  }
+  if (!is.null(cfg$evaluation)) {
+    require_fields(cfg$evaluation, c("reference_model", "bootstrap_replications", "block_length", "seed"), "evaluation")
+    require_choice(cfg$evaluation$reference_model, cfg$rolling$models, "evaluation.reference_model")
+    require_integer(cfg$evaluation$bootstrap_replications, "evaluation.bootstrap_replications", 100L)
+    require_integer(cfg$evaluation$block_length, "evaluation.block_length", 1L)
+    require_integer(cfg$evaluation$seed, "evaluation.seed")
+  }
 
   require_fields(cfg$compute, "resume", "compute")
   require_flag(cfg$compute$resume, "compute.resume")

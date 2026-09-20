@@ -166,7 +166,7 @@ test_that("rolling copula checkpoints preserve state and log-return scoring", {
   checkpoint <- tempfile("copula-checkpoint-", fileext = ".rds")
   first <- rolling_copula_garch_forecasts(returns$log, returns$dates, cfg, checkpoint, resume = TRUE)
   saved <- readRDS(checkpoint)
-  expect_identical(saved$schema, 2L)
+  expect_identical(saved$schema, 3L)
   expect_equal(length(saved$state_history), 2)
   origins <- rolling_origins(nrow(returns$log), cfg$rolling$initial_window, 2)
   realised_simple <- vapply(origins, function(origin) {
@@ -183,9 +183,11 @@ test_that("comparison, ES evaluation, and convergence return complete outputs", 
   set.seed(72)
   realised <- rnorm(80, sd = 0.02)
   forecasts <- rbind(
-    data.frame(model = "gaussian", confidence = 0.95, var = 0.035, es = 0.045,
+    data.frame(forecast_date = as.Date("2020-01-01") + seq_along(realised),
+               model = "gaussian", confidence = 0.95, var = 0.035, es = 0.045,
                realised_return = realised, runtime_seconds = 0.1, status = "ok"),
-    data.frame(model = "historical", confidence = 0.95, var = 0.04, es = 0.055,
+    data.frame(forecast_date = as.Date("2020-01-01") + seq_along(realised),
+               model = "historical", confidence = 0.95, var = 0.04, es = 0.055,
                realised_return = realised, runtime_seconds = 0.2, status = "ok")
   )
   comparison <- compare_forecast_models(forecasts)

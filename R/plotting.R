@@ -49,16 +49,20 @@ plot_copula_diagnostic <- function(u, simulated, path) {
 #' @export
 plot_var_exceedances <- function(forecasts, path, confidence = 0.99, model = NULL) {
   x <- forecasts[forecasts$confidence == confidence & forecasts$status == "ok", , drop = FALSE]
+  if (!nrow(x)) return(write_png(path, {
+    plot.new(); text(0.5, 0.5, "No successful forecasts at this confidence level")
+  }))
   if (is.null(model)) model <- unique(x$model)[[1]]
   x <- x[x$model == model, , drop = FALSE]
   if (!nrow(x)) stop("No successful forecasts to plot.", call. = FALSE)
   display_model <- gsub("_", "-", model, fixed = TRUE)
+  threshold <- -(x$loss_var %||% x$var)
   write_png(path, {
-    ylim <- range(c(x$realised_return, -x$var), finite = TRUE)
+    ylim <- range(c(x$realised_return, threshold), finite = TRUE)
     plot(as.Date(x$forecast_date), x$realised_return, type = "h", col = "#64748B", lwd = 1,
          xlab = "Forecast date", ylab = "Return", ylim = ylim,
          main = sprintf("Rolling %.0f%% VaR exceedances - %s", 100 * confidence, display_model))
-    lines(as.Date(x$forecast_date), -x$var, col = "#B91C1C", lwd = 2)
+    lines(as.Date(x$forecast_date), threshold, col = "#B91C1C", lwd = 2)
     points(as.Date(x$forecast_date)[x$exceedance], x$realised_return[x$exceedance], pch = 19, col = "#DC2626")
     legend("bottomleft", c("Realised return", "VaR threshold", "Exception"),
            col = c("#64748B", "#B91C1C", "#DC2626"), lty = c(1, 1, NA), pch = c(NA, NA, 19), bty = "n")
@@ -76,7 +80,7 @@ plot_simulation_risk <- function(simulation, path) {
     return_type <- simulation$metadata$return_type %||% "simple"
     hist(x, breaks = "FD", col = "#D9EAF1", border = "white", probability = TRUE,
          xlab = sprintf("Portfolio %s return", return_type), main = "Copula-based portfolio return simulation")
-    for (i in seq_len(nrow(simulation$risk))) abline(v = -simulation$risk$var[i],
+    for (i in seq_len(nrow(simulation$risk))) abline(v = -(simulation$risk$loss_var %||% simulation$risk$var)[i],
       col = c("#CA6702", "#B91C1C")[min(i, 2)], lwd = 2, lty = i)
     legend("topleft", sprintf("%.0f%% VaR", 100 * simulation$risk$confidence),
            col = c("#CA6702", "#B91C1C")[seq_len(min(2, nrow(simulation$risk)))],
@@ -92,13 +96,23 @@ plot_simulation_risk <- function(simulation, path) {
 plot_model_comparison <- function(comparison, path) {
   write_png(path, {
     x <- comparison[is.finite(comparison$quantile_loss), ]
-    labels <- paste(gsub("_", " ", x$model), sprintf("%.0f%%", 100 * x$confidence), sep = "\n")
-    par(mar = c(10, 9, 4, 2) + 0.1, mgp = c(5, 1, 0))
-    barplot(x$quantile_loss, names.arg = labels, las = 2, col = "#1B4965",
-      ylab = "Mean quantile loss", main = "Out-of-sample model comparison",
-      cex.names = 0.72, cex.axis = 0.9)
-    grid(nx = NA, ny = NULL, col = "#E5E7EB")
-  })
+    if (!nrow(x)) {
+      plot.new(); text(0.5, 0.5, "No common valid forecasts available")
+    } else {
+      levels <- sort(unique(x$confidence))
+      par(mfrow = c(1, length(levels)), mar = c(5, 10, 4, 2))
+      for (level in levels) {
+        panel <- x[x$confidence == level, ]
+        panel <- panel[order(panel$quantile_loss, decreasing = TRUE), ]
+        colours <- ifelse(panel$model == "copula_garch", "#CA6702", "#1B4965")
+        barplot(panel$quantile_loss, names.arg = gsub("_", " ", panel$model),
+          horiz = TRUE, las = 1, col = colours, border = NA,
+          xlab = "Mean quantile loss (common dates)", main = sprintf("%.0f%% VaR", 100 * level),
+          cex.names = 0.85)
+        grid(nx = NULL, ny = NA, col = "#E5E7EB")
+      }
+    }
+  }, width = 1600, height = 900)
 }
 
 #' Plot Monte Carlo convergence

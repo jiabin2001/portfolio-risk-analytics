@@ -11,6 +11,11 @@ uniform_ad_statistic <- function(u) {
 }
 
 #' Residual and PIT diagnostics
+#'
+#' PIT goodness-of-fit statistics and their conventional p-values are exploratory:
+#' the marginal parameters were estimated from the same observations, so ordinary
+#' KS/AD reference distributions do not calibrate these fitted-residual tests.
+#' A formal test requires a refit-aware bootstrap or separately validated forecasts.
 #' @param fit Successful marginal fit.
 #' @param lag Ljung-Box lag.
 #' @param pit_epsilon PIT clipping value.
@@ -39,6 +44,7 @@ diagnose_marginal <- function(fit, lag = 10L, pit_epsilon = 1e-8) {
     squared_ljung_box_p_value = squared_lb$p.value,
     pit_ks_statistic = unname(ks$statistic), pit_ks_p_value = ks$p.value,
     pit_ad_statistic = ad$statistic, pit_ad_p_value = ad$p_value, pit_ad_method = ad$method,
+    pit_p_value_calibration = "exploratory_fitted_parameters",
     pit_values = pit$values, pit_clipped = pit$n_clipped,
     residual_acf = as.numeric(acf(z, plot = FALSE, lag.max = lag)$acf[-1]),
     squared_residual_acf = as.numeric(acf(z^2, plot = FALSE, lag.max = lag)$acf[-1])

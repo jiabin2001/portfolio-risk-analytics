@@ -6,9 +6,13 @@
 \usage{
 forecast_baseline(
   returns,
-  model = c("historical", "gaussian", "student_t", "ewma", "filtered_historical"),
+  model = c("historical", "gaussian", "student_t", "ewma", "filtered_historical",
+    "garch_t"),
   confidence = 0.99,
-  ewma_lambda = 0.94
+  ewma_lambda = 0.94,
+  garch_engine = "auto",
+  garch_solver = "hybrid",
+  garch_timeout_seconds = NULL
 )
 }
 \arguments{
@@ -19,6 +23,12 @@ forecast_baseline(
 \item{confidence}{Confidence level.}
 
 \item{ewma_lambda}{EWMA decay.}
+
+\item{garch_engine}{Engine for the fixed portfolio GARCH-t benchmark.}
+
+\item{garch_solver}{Solver used by the rugarch engine.}
+
+\item{garch_timeout_seconds}{Optional GARCH fit timeout.}
 }
 \value{
 Named list using the common forecast schema.

@@ -2,16 +2,16 @@
 % Please edit documentation in R/es_backtesting.R
 \name{joint_var_es_score}
 \alias{joint_var_es_score}
-\title{Joint VaR/ES score for loss magnitudes}
+\title{Joint VaR/ES score on the signed loss scale}
 \usage{
 joint_var_es_score(realised_returns, var, es, confidence = 0.99)
 }
 \arguments{
 \item{realised_returns}{Signed returns.}
 
-\item{var}{Positive VaR magnitudes.}
+\item{var}{Signed loss-scale VaR, preferably the risk estimate's \code{loss_var}.}
 
-\item{es}{Positive ES magnitudes.}
+\item{es}{Signed loss-scale ES, preferably the risk estimate's \code{loss_es}.}
 
 \item{confidence}{Confidence level.}
 }
@@ -19,6 +19,8 @@ joint_var_es_score(realised_returns, var, es, confidence = 0.99)
 Numeric score vector; lower is better for comparisons on the same sample.
 }
 \description{
-Implements a Fissler-Ziegel-class score. \code{loss}, \code{var}, and \code{es} are all positive
-loss-scale quantities and ES must be at least VaR.
+Implements the Fissler-Ziegel zero-homogeneous score (FZ0). VaR may be negative,
+but this score requires strictly positive loss-scale ES. Valid forecasts outside
+that domain return \code{NA}, rather than clipping their signed risk or assigning an
+artificial score. Missing observations also return \code{NA}. ES must be at least VaR.
 }

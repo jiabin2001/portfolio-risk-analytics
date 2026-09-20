@@ -24,6 +24,7 @@ data/processed/*
 outputs/models/*
 outputs/logs/*
 outputs/checkpoints/*
+outputs/runs/*
 outputs/checks*/
 
 # Private inputs and secrets

@@ -23,17 +23,27 @@ ewma_variance <- function(returns, lambda = 0.94, initial_variance = NULL) {
 #' @param model Model name.
 #' @param confidence Confidence level.
 #' @param ewma_lambda EWMA decay.
+#' @param garch_engine Engine for the fixed portfolio GARCH-t benchmark.
+#' @param garch_solver Solver used by the rugarch engine.
+#' @param garch_timeout_seconds Optional GARCH fit timeout.
 #' @return Named list using the common forecast schema.
 #' @export
-forecast_baseline <- function(returns, model = c("historical", "gaussian", "student_t", "ewma", "filtered_historical"),
-                              confidence = 0.99, ewma_lambda = 0.94) {
+forecast_baseline <- function(returns, model = c("historical", "gaussian", "student_t", "ewma", "filtered_historical", "garch_t"),
+                              confidence = 0.99, ewma_lambda = 0.94,
+                              garch_engine = "auto", garch_solver = "hybrid", garch_timeout_seconds = NULL) {
   model <- match.arg(model)
   validate_confidence(confidence)
   x <- as.numeric(returns)
   x <- x[is.finite(x)]
   if (length(x) < 30L) stop("Benchmark forecast requires at least 30 finite observations.", call. = FALSE)
   started <- proc.time()[["elapsed"]]
-  result <- switch(model,
+  model_warnings <- character()
+  model_engine <- "analytical_or_empirical"
+  result <- if (all(x == x[[1]])) {
+    model_engine <- "deterministic_point_mass"
+    model_warnings <- "Constant training returns: using the deterministic point-mass distribution."
+    empirical_var_es(x, confidence)
+  } else switch(model,
     historical = empirical_var_es(x, confidence),
     gaussian = gaussian_var_es(mean(x), sd(x), confidence),
     student_t = {
@@ -51,15 +61,31 @@ forecast_baseline <- function(returns, model = c("historical", "gaussian", "stud
       risk <- empirical_var_es(z * next_sigma, confidence)
       risk$method <- "filtered_historical"
       risk
+    },
+    garch_t = {
+      spec <- list(model_id = "portfolio_sgarch11_std", arma_p = 0L, arma_q = 0L,
+                   garch_p = 1L, garch_q = 1L, volatility_family = "sGARCH", distribution = "std")
+      fit <- fit_marginal_model(x, spec, engine = garch_engine, solver = garch_solver,
+                                min_observations = 100L, timeout_seconds = garch_timeout_seconds)
+      if (!identical(fit$status, "ok")) {
+        stop(sprintf("Portfolio GARCH-t fit failed: %s", fit$error), call. = FALSE)
+      }
+      df <- fit$parameters$shape %||% fit$parameters$df
+      model_warnings <- fit$warnings
+      model_engine <- fit$engine
+      student_t_var_es(fit$forecast_mean, fit$forecast_sigma, df, confidence)
     }
   )
   list(
     model = model, confidence = confidence,
     return_quantile = result$return_quantile[[1]],
     var = result$var[[1]], es = result$es[[1]],
-    status = "ok", warnings = character(),
+    loss_var = (result$loss_var %||% result$var)[[1]],
+    loss_es = (result$loss_es %||% result$es)[[1]],
+    status = "ok", warnings = model_warnings,
     runtime_seconds = unname(proc.time()[["elapsed"]] - started),
-    metadata = list(n_training = length(x), ewma_lambda = if (model %in% c("ewma", "filtered_historical")) ewma_lambda else NULL,
+    metadata = list(n_training = length(x), engine = model_engine,
+                    ewma_lambda = if (model %in% c("ewma", "filtered_historical")) ewma_lambda else NULL,
                     df = if ("df" %in% names(result)) result$df[[1]] else NULL)
   )
 }

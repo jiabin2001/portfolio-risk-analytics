@@ -1,6 +1,6 @@
 Package: portfoliorisk
 Title: Portfolio Risk Analytics Engine
-Version: 0.1.0
+Version: 0.2.0
 Authors@R: person("Jiabin", "Zhang", role = c("aut", "cre"),
     email = "115036749+jiabin2001@users.noreply.github.com")
 Description: A reproducible market-risk modelling and backtesting framework
@@ -36,4 +36,4 @@ Config/Needs/check:
     roxygen2
 Config/Needs/development:
     styler
-Config/roxygen2/version: 8.0.0
+Config/roxygen2/version: 8.1.0

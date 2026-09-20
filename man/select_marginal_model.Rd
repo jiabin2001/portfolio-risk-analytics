@@ -21,5 +21,7 @@ select_marginal_model(
 Selection object with complete comparison table.
 }
 \description{
-Select a marginal model by validity constraints then information criterion
+Admission screens residual and squared-residual autocorrelation. In-sample PIT
+KS p-values are retained as exploratory diagnostics, not used as hard admission
+thresholds, because their null distribution ignores fitted marginal parameters.
 }

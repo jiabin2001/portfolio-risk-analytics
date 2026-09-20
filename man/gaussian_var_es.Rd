@@ -14,7 +14,8 @@ gaussian_var_es(mean_return = 0, volatility = 1, confidence = 0.99)
 \item{confidence}{Confidence level.}
 }
 \value{
-One-row data frame with positive loss magnitudes.
+One-row data frame with signed \code{loss_var}/\code{loss_es}, \code{return_quantile},
+and nonnegative display magnitudes \code{var}/\code{es}.
 }
 \description{
 Gaussian analytical VaR and ES

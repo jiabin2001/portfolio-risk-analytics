@@ -9,6 +9,7 @@ data:
   cache: true
   force_refresh: false
   min_observations: 1000
+  max_stale_days: 4
 portfolio:
   weights: [0.5, 0.5]
   return_type: log
@@ -19,11 +20,11 @@ portfolio:
 risk:
   confidence_levels: [0.95, 0.99]
 models:
-  arma_p: [0, 1, 2, 3]
-  arma_q: [0, 1, 2]
-  garch_orders: [[1, 1], [1, 2], [2, 1]]
+  arma_p: [0, 1]
+  arma_q: [0, 1]
+  garch_orders: [[1, 1]]
   volatility_families: [sGARCH, eGARCH, gjrGARCH]
-  distributions: [norm, std, sstd, ged, sged]
+  distributions: [std, sstd]
   information_criterion: BIC
   diagnostic_alpha: 0.01
   solver: hybrid
@@ -43,9 +44,15 @@ rolling:
   window_type: moving
   initial_window: 520
   window_size: 520
-  evaluation_observations: 260
-  models: [historical, gaussian, student_t, ewma, filtered_historical, copula_garch]
+  evaluation_observations: 520
+  models: [historical, gaussian, student_t, ewma, filtered_historical, garch_t, copula_garch]
+  copula_ablations: [independence, gaussian, student, bb1]
   checkpoint: true
+evaluation:
+  reference_model: garch_t
+  bootstrap_replications: 1999
+  block_length: 13
+  seed: 901
 compute:
   resume: true
 report:

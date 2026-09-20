@@ -125,11 +125,20 @@ atomic_save_rds <- function(object, path) {
 
 #' Model-stage dependency fingerprint
 #' @noRd
-analysis_fingerprint <- function(config_path, model_returns) {
-  x <- as.matrix(model_returns)
-  paste(
-    unname(tools::md5sum(config_path)), nrow(x), ncol(x),
-    format(sum(x), digits = 17), format(sum(x^2), digits = 17),
-    format(sum(abs(x)), digits = 17), sep = "|"
-  )
+analysis_fingerprint <- function(config_path, model_returns, dates = NULL) {
+  stable_object_md5(list(schema = 3L, config = unname(tools::md5sum(config_path)),
+    returns = as.matrix(model_returns), dates = as.character(dates),
+    implementation = implementation_fingerprint()))
+}
+
+#' Identify the implementation and numerical dependency versions
+#' @keywords internal
+implementation_fingerprint <- function() {
+  root <- tryCatch(pra_project_root(), error = function(e) NULL)
+  files <- if (!is.null(root)) sort(list.files(file.path(root, "R"), "[.]R$", full.names = TRUE)) else character()
+  versions <- vapply(c("portfoliorisk", "rugarch", "VineCopula", "ADGofTest"), function(pkg) {
+    if (requireNamespace(pkg, quietly = TRUE)) as.character(utils::packageVersion(pkg)) else "unavailable"
+  }, character(1))
+  code <- if (length(files)) setNames(unname(tools::md5sum(files)), basename(files)) else "installed-package"
+  stable_object_md5(list(schema = 3L, code = code, versions = versions, r = as.character(getRversion())))
 }

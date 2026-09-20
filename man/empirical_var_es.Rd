@@ -11,12 +11,16 @@ empirical_var_es(returns, confidence = 0.99, type = 7L)
 
 \item{confidence}{Confidence level.}
 
-\item{type}{Quantile algorithm.}
+\item{type}{Quantile algorithm for VaR; ES always uses empirical probability mass.}
 }
 \value{
-One-row data frame.
+One-row data frame. \code{tail_observations} counts observations receiving
+positive ES weight, and \code{tail_effective_observations} is their total weight.
 }
 \description{
-Returns are signed (negative means loss). VaR and ES are returned as positive loss
-magnitudes. VaR is a loss-quantile threshold, not a maximum loss.
+Returns are signed (negative means loss). \code{loss_var} and \code{loss_es} retain signed
+loss-scale estimates, including negative values when the tail still earns a gain.
+\code{var} and \code{es} are nonnegative display magnitudes. VaR is a loss-quantile threshold,
+not a maximum loss. ES integrates exactly the worst \code{1 - confidence} probability
+mass of the empirical distribution, with fractional weight at its boundary.
 }

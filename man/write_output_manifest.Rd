@@ -4,7 +4,12 @@
 \alias{write_output_manifest}
 \title{Build an output manifest for the report}
 \usage{
-write_output_manifest(files, run_id, root = pra_project_root())
+write_output_manifest(
+  files,
+  run_id,
+  root = pra_project_root(),
+  provenance = NULL
+)
 }
 \arguments{
 \item{files}{Named output paths.}
@@ -12,6 +17,8 @@ write_output_manifest(files, run_id, root = pra_project_root())
 \item{run_id}{Run identifier.}
 
 \item{root}{Project root.}
+
+\item{provenance}{Optional named source and configuration identifiers.}
 }
 \value{
 Manifest path.

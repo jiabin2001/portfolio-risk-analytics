@@ -2,16 +2,19 @@
 % Please edit documentation in R/model_comparison.R
 \name{compare_forecast_models}
 \alias{compare_forecast_models}
-\title{Compare rolling forecast models}
+\title{Compare rolling forecasts on common dates}
 \usage{
 compare_forecast_models(forecasts)
 }
 \arguments{
-\item{forecasts}{Common-schema rolling forecasts.}
+\item{forecasts}{Common-schema forecasts with unique model/confidence/date keys.}
 }
 \value{
-Model comparison table.
+Comparison table with coverage, availability, common-sample scores and ranks.
 }
 \description{
-Compare rolling forecast models
+Coverage and availability describe each model's full forecast calendar. Missing
+forecasts remain gaps in independence tests. Quantile and joint-score ranks use
+separate date intersections shared by every model at a confidence level. Ranks
+describe sample losses, not evidence of statistically significant superiority.
 }

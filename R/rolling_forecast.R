@@ -43,15 +43,19 @@ rolling_baseline_forecasts <- function(returns, dates, models, confidence_levels
                                        evaluation_observations = NULL, checkpoint_path = NULL, resume = TRUE) {
   returns <- as.numeric(returns); dates <- as.Date(dates)
   if (length(returns) != length(dates)) stop("Returns and dates must have the same length.", call. = FALSE)
+  if (anyNA(dates) || is.unsorted(dates, strictly = TRUE) || any(!is.finite(returns))) {
+    stop("Rolling inputs must be finite and dates strictly increasing.", call. = FALSE)
+  }
+  if (!length(models)) return(empty_rolling_forecasts())
   origins <- rolling_origins(length(returns), initial_window, evaluation_observations)
   fingerprint <- stable_object_md5(list(
-    schema = 2L, returns = returns, dates = as.character(dates), models = models,
+    schema = 3L, implementation = implementation_fingerprint(), returns = returns, dates = as.character(dates), models = models,
     confidence_levels = confidence_levels, initial_window = initial_window,
     window_type = window_type, window_size = window_size,
     evaluation_observations = evaluation_observations
   ))
   checkpoint <- if (resume && !is.null(checkpoint_path) && file.exists(checkpoint_path)) readRDS(checkpoint_path) else NULL
-  valid_checkpoint <- is.list(checkpoint) && identical(checkpoint$schema, 2L) &&
+  valid_checkpoint <- is.list(checkpoint) && identical(checkpoint$schema, 3L) &&
     identical(checkpoint$fingerprint, fingerprint) && is.data.frame(checkpoint$rows)
   existing <- if (valid_checkpoint) checkpoint$rows else NULL
   if (!is.null(existing) && nrow(existing)) {
@@ -66,13 +70,14 @@ rolling_baseline_forecasts <- function(returns, dates, models, confidence_levels
       key <- paste(as.character(dates[origin + 1L]), model, confidence, sep = "|")
       if (key %in% completed) next
       started <- proc.time()[["elapsed"]]
-      forecast <- tryCatch(forecast_baseline(train, model, confidence), error = function(e) e)
+      forecast <- tryCatch(with_preserved_seed(origin, forecast_baseline(train, model, confidence)), error = function(e) e)
       runtime <- unname(proc.time()[["elapsed"]] - started)
       realised <- returns[origin + 1L]
       if (inherits(forecast, "error")) {
         row <- data.frame(
           forecast_date = dates[origin + 1L], training_start = dates[min(idx)], training_end = dates[max(idx)],
           model = model, confidence = confidence, var = NA_real_, es = NA_real_,
+          loss_var = NA_real_, loss_es = NA_real_,
           realised_return = realised, realised_loss = -realised, exceedance = NA,
           runtime_seconds = runtime, warning_status = conditionMessage(forecast), status = "failed",
           stringsAsFactors = FALSE
@@ -81,8 +86,9 @@ rolling_baseline_forecasts <- function(returns, dates, models, confidence_levels
         row <- data.frame(
           forecast_date = dates[origin + 1L], training_start = dates[min(idx)], training_end = dates[max(idx)],
           model = model, confidence = confidence, var = forecast$var, es = forecast$es,
+          loss_var = forecast$loss_var, loss_es = forecast$loss_es,
           realised_return = realised, realised_loss = -realised,
-          exceedance = -realised > forecast$var,
+          exceedance = -realised > forecast$loss_var,
           runtime_seconds = runtime, warning_status = paste(forecast$warnings, collapse = ";"), status = "ok",
           stringsAsFactors = FALSE
         )
@@ -90,7 +96,7 @@ rolling_baseline_forecasts <- function(returns, dates, models, confidence_levels
       rows[[length(rows) + 1L]] <- row
     }
     if (!is.null(checkpoint_path)) {
-      atomic_save_rds(list(schema = 2L, fingerprint = fingerprint, rows = do.call(rbind, rows)), checkpoint_path)
+      atomic_save_rds(list(schema = 3L, fingerprint = fingerprint, rows = do.call(rbind, rows)), checkpoint_path)
     }
   }
   out <- do.call(rbind, rows)
@@ -99,11 +105,21 @@ rolling_baseline_forecasts <- function(returns, dates, models, confidence_levels
   out
 }
 
+#' Empty common-schema rolling result
+#' @keywords internal
+empty_rolling_forecasts <- function() {
+  data.frame(forecast_date = as.Date(character()), training_start = as.Date(character()),
+    training_end = as.Date(character()), model = character(), confidence = numeric(),
+    var = numeric(), es = numeric(), loss_var = numeric(), loss_es = numeric(),
+    realised_return = numeric(), realised_loss = numeric(), exceedance = logical(),
+    runtime_seconds = numeric(), warning_status = character(), status = character())
+}
+
 #' Fingerprint a rolling copula checkpoint
 #' @keywords internal
 rolling_copula_fingerprint <- function(x, dates, cfg, origins) {
   stable_object_md5(list(
-    schema = 2L,
+    schema = 3L, implementation = implementation_fingerprint(),
     returns = x,
     dates = as.character(dates),
     origins = origins,
@@ -111,7 +127,7 @@ rolling_copula_fingerprint <- function(x, dates, cfg, origins) {
     risk = cfg$risk$confidence_levels,
     models = cfg$models,
     simulation = cfg$simulation[c("rolling_n", "chunk_size", "seed")],
-    rolling = cfg$rolling[c("initial_window", "window_type", "window_size", "evaluation_observations")]
+    rolling = cfg$rolling[c("initial_window", "window_type", "window_size", "evaluation_observations", "copula_ablations")]
   ))
 }
 
@@ -120,7 +136,7 @@ rolling_copula_fingerprint <- function(x, dates, cfg, origins) {
 read_rolling_copula_checkpoint <- function(path, fingerprint) {
   if (is.null(path) || !file.exists(path)) return(NULL)
   value <- readRDS(path)
-  valid <- is.list(value) && identical(value$schema, 2L) &&
+  valid <- is.list(value) && identical(value$schema, 3L) &&
     identical(value$fingerprint, fingerprint) && is.data.frame(value$rows) &&
     is.list(value$state_history)
   if (valid) value else NULL
@@ -143,6 +159,12 @@ rolling_copula_garch_forecasts <- function(asset_log_returns, dates, cfg, checkp
                                            resume = TRUE, progress_callback = NULL) {
   x <- as.matrix(asset_log_returns); dates <- as.Date(dates)
   if (ncol(x) != 2L || nrow(x) != length(dates)) stop("Copula-GARCH rolling forecast currently requires two aligned assets.", call. = FALSE)
+  if (any(!is.finite(x)) || anyNA(dates) || is.unsorted(dates, strictly = TRUE)) {
+    stop("Rolling inputs must be finite and dates strictly increasing.", call. = FALSE)
+  }
+  ablations <- cfg$rolling$copula_ablations %||% character()
+  expected_models <- c("copula_garch", if (length(ablations)) paste0("copula_", ablations) else character())
+  expected_keys <- as.vector(outer(expected_models, cfg$risk$confidence_levels, paste, sep = "|"))
   origins <- rolling_origins(nrow(x), cfg$rolling$initial_window, cfg$rolling$evaluation_observations)
   fingerprint <- rolling_copula_fingerprint(x, dates, cfg, origins)
   checkpoint <- if (resume) read_rolling_copula_checkpoint(checkpoint_path, fingerprint) else NULL
@@ -153,7 +175,10 @@ rolling_copula_garch_forecasts <- function(asset_log_returns, dates, cfg, checkp
     for (position in seq_along(origins)) {
       forecast_date <- dates[origins[[position]] + 1L]
       date_rows <- existing[as.Date(existing$forecast_date) == forecast_date, , drop = FALSE]
-      complete <- nrow(date_rows) == length(cfg$risk$confidence_levels) &&
+      keys <- paste(date_rows$model, date_rows$confidence, sep = "|")
+      complete <- nrow(date_rows) == length(expected_keys) && !anyDuplicated(keys) &&
+        setequal(keys, expected_keys) && all(is.finite(date_rows$loss_var)) && all(is.finite(date_rows$loss_es)) &&
+        all(is.finite(date_rows$realised_return)) &&
         all(date_rows$status == "ok") && !is.null(state_history[[as.character(position)]])
       if (!complete) break
       completed_prefix <- position
@@ -180,7 +205,7 @@ rolling_copula_garch_forecasts <- function(asset_log_returns, dates, cfg, checkp
     idx <- training_indices(origin, cfg$rolling$window_type, cfg$rolling$window_size)
     started <- proc.time()[["elapsed"]]
     warnings_seen <- character()
-    result <- tryCatch({
+    result <- tryCatch(with_preserved_seed(cfg$simulation$seed + origin, {
       reselect <- ((position - 1L) %% reselection_frequency == 0L) || is.null(selected_specs)
       marginal_fits <- vector("list", 2L)
       selections <- vector("list", 2L)
@@ -201,6 +226,7 @@ rolling_copula_garch_forecasts <- function(asset_log_returns, dates, cfg, checkp
       pits <- lapply(marginal_fits, function(fit) pit_transform(fit$standardised_residuals,
         fit$spec$distribution, fit$parameters)$values)
       common_n <- min(lengths(pits)); u <- cbind(tail(pits[[1]], common_n), tail(pits[[2]], common_n))
+      marginal_runtime <- unname(proc.time()[["elapsed"]] - started)
       families <- if (reselect || is.null(selected_family)) cfg$models$copula_families else selected_family
       copula <- fit_copula_candidates(u, families, cfg$models$information_criterion)
       if (is.null(copula$selected)) stop("No copula model available.", call. = FALSE)
@@ -210,13 +236,14 @@ rolling_copula_garch_forecasts <- function(asset_log_returns, dates, cfg, checkp
         allow_short = cfg$portfolio$allow_short)
       list(marginals = marginal_fits, copula = copula$selected, risk = simulation$risk,
            reselected = reselect, selected_specs = next_specs,
-           selected_family = copula$selected$family)
-    }, error = function(e) e)
+           selected_family = copula$selected$family, u = u, marginal_runtime = marginal_runtime)
+    }), error = function(e) e)
     runtime <- unname(proc.time()[["elapsed"]] - started)
-    realised_simple <- drop(expm1(x[origin + 1L, , drop = FALSE]) %*% cfg$portfolio$weights)
+    realised_assets <- if (cfg$portfolio$return_type == "log") expm1(x[origin + 1L, , drop = FALSE]) else x[origin + 1L, , drop = FALSE]
+    realised_simple <- drop(realised_assets %*% cfg$portfolio$weights)
     realised <- if (cfg$portfolio$return_type == "log") log1p(realised_simple) else realised_simple
     if (inherits(result, "error")) {
-      risk_rows <- data.frame(confidence = cfg$risk$confidence_levels, var = NA_real_, es = NA_real_)
+      risk_rows <- data.frame(confidence = cfg$risk$confidence_levels, var = NA_real_, es = NA_real_, loss_var = NA_real_, loss_es = NA_real_)
       marginal_names <- NA_character_; copula_name <- NA_character_; status <- "failed"
       warnings_seen <- c(warnings_seen, conditionMessage(result)); reselected <- NA
     } else {
@@ -230,11 +257,45 @@ rolling_copula_garch_forecasts <- function(asset_log_returns, dates, cfg, checkp
       forecast_date = rep(forecast_date, nrow(risk_rows)), training_start = dates[min(idx)],
       training_end = dates[max(idx)], model = "copula_garch", confidence = risk_rows$confidence,
       var = risk_rows$var, es = risk_rows$es, realised_return = realised, realised_loss = -realised,
-      exceedance = ifelse(is.finite(risk_rows$var), -realised > risk_rows$var, NA),
+      loss_var = risk_rows$loss_var, loss_es = risk_rows$loss_es,
+      exceedance = ifelse(is.finite(risk_rows$loss_var), -realised > risk_rows$loss_var, NA),
       marginal_models = marginal_names, copula = copula_name, reselected = reselected,
       runtime_seconds = runtime, warning_status = paste(unique(warnings_seen), collapse = ";"), status = status,
       stringsAsFactors = FALSE
     )
+    for (family in ablations) {
+      ablation_started <- proc.time()[["elapsed"]]
+      ablation <- if (inherits(result, "error")) result else tryCatch({
+        fit <- if (family == "independence") {
+          list(family = "gaussian", engine = "native", status = "ok", parameters = list(rho = 0))
+        } else {
+          candidates <- fit_copula_candidates(result$u, family, cfg$models$information_criterion)
+          if (is.null(candidates$selected) || candidates$selected$family != family) {
+            stop(sprintf("Requested ablation family %s did not fit; fallback is not an ablation.", family), call. = FALSE)
+          }
+          candidates$selected
+        }
+        simulate_portfolio_risk(fit, result$marginals, cfg$portfolio$weights,
+          cfg$simulation$rolling_n, cfg$simulation$seed + origin, cfg$simulation$chunk_size,
+          cfg$portfolio$return_type, cfg$risk$confidence_levels,
+          allow_short = cfg$portfolio$allow_short)$risk
+      }, error = function(e) e)
+      extra <- new_rows[new_rows$model == "copula_garch", , drop = FALSE]
+      extra$model <- paste0("copula_", family)
+      extra$copula <- family
+      extra$runtime_seconds <- (if (inherits(result, "error")) runtime else result$marginal_runtime) +
+        unname(proc.time()[["elapsed"]] - ablation_started)
+      if (inherits(ablation, "error")) {
+        extra[, c("var", "es", "loss_var", "loss_es")] <- NA_real_
+        extra$exceedance <- NA
+        extra$status <- "failed"
+        extra$warning_status <- conditionMessage(ablation)
+      } else {
+        extra[, c("var", "es", "loss_var", "loss_es")] <- ablation[, c("var", "es", "loss_var", "loss_es")]
+        extra$exceedance <- -realised > extra$loss_var
+      }
+      new_rows <- rbind(new_rows, extra)
+    }
     rows <- c(rows, split(new_rows, seq_len(nrow(new_rows))))
     state_history[[as.character(position)]] <- list(
       selected_specs = selected_specs,
@@ -242,7 +303,7 @@ rolling_copula_garch_forecasts <- function(asset_log_returns, dates, cfg, checkp
     )
     if (!is.null(checkpoint_path)) {
       atomic_save_rds(list(
-        schema = 2L,
+        schema = 3L,
         fingerprint = fingerprint,
         rows = do.call(rbind, rows),
         state_history = state_history
@@ -255,7 +316,7 @@ rolling_copula_garch_forecasts <- function(asset_log_returns, dates, cfg, checkp
     }
   }
   out <- do.call(rbind, rows)
-  out <- out[order(out$forecast_date, out$confidence), , drop = FALSE]
+  out <- out[order(out$forecast_date, out$model, out$confidence), , drop = FALSE]
   row.names(out) <- NULL
   out
 }

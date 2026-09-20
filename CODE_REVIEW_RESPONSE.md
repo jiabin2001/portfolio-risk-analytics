@@ -1,5 +1,8 @@
 # Code Review Disposition
 
+> Historical v0.1 review record. The September v0.2 corrections supersede the
+> validation claims below. See CHANGELOG.md and STATUS.md for the current release.
+
 This document records the disposition of the independent code review completed on
 2026-07-18. Findings were reproduced against the code rather than accepted solely from
 the report.

@@ -4,15 +4,33 @@
 \alias{align_prices}
 \title{Align long-format prices to common trading dates}
 \usage{
-align_prices(prices, tickers = unique(prices$ticker))
+align_prices(
+  prices,
+  tickers = unique(prices$ticker),
+  frequency = NULL,
+  start = NULL,
+  end = NULL,
+  max_stale_days = 4L
+)
 }
 \arguments{
 \item{prices}{Validated long-format prices.}
 
 \item{tickers}{Ordered ticker names.}
+
+\item{frequency}{NULL or daily keeps common observed dates. Weekly uses a
+shared Friday valuation calendar and each asset's latest quote on or before
+the cutoff, without dropping holiday weeks.}
+
+\item{start, end}{Optional inclusive date bounds. A weekly cutoff after end is
+excluded, including an incomplete final calendar week.}
+
+\item{max_stale_days}{Maximum quote age at a weekly cutoff, from zero to four
+calendar days. Quotes from an earlier week are never carried forward.}
 }
 \value{
-Wide data frame with a date column.
+Wide data frame with a date column. Its valuation_audit attribute
+records valuation dates, source quote dates, and quote ages.
 }
 \description{
 Align long-format prices to common trading dates

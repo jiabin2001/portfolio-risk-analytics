@@ -4,7 +4,7 @@
 #' market data.
 #' @param tickers Asset labels.
 #' @param n Number of weekly observations.
-#' @param start First date.
+#' @param start Earliest date; the first observation is the Friday on or after it.
 #' @param seed Random seed.
 #' @return Long-format price data with fixture metadata.
 #' @export
@@ -20,7 +20,9 @@ generate_fixture_prices <- function(tickers = c("ASSET_A", "ASSET_B"), n = 320L,
       scale * z * sqrt(0.75 + 0.25 * common^2)
     }, numeric(n))
   })
-  dates <- start + 7L * (seq_len(n) - 1L)
+  start <- as.Date(start)
+  first_friday <- start + (5L - as.POSIXlt(start)$wday) %% 7L
+  dates <- first_friday + 7L * (seq_len(n) - 1L)
   pieces <- lapply(seq_along(tickers), function(i) data.frame(
     date = dates, ticker = tickers[[i]],
     adjusted = 100 * exp(cumsum(shocks[, i])), stringsAsFactors = FALSE
@@ -53,12 +55,18 @@ data_request_signature <- function(cfg, root) {
     csv_path <- normalizePath(csv_path, winslash = "/", mustWork = FALSE)
   }
   list(
+    schema = 2L,
+    calendar_policy = "shared_friday_asof_same_week_v1",
     source = cfg$data$source,
     tickers = as.character(cfg$data$tickers),
     start = as.character(as.Date(cfg$data$start)),
     end = as.character(as.Date(cfg$data$end)),
     frequency = cfg$data$frequency,
     adjusted = isTRUE(cfg$data$adjusted),
+    min_observations = as.integer(cfg$data$min_observations),
+    max_stale_days = cfg$data$max_stale_days %||% 4L,
+    fixture_observations = if (identical(cfg$data$source, "fixture")) cfg$data$fixture_observations else NULL,
+    fixture_seed = if (identical(cfg$data$source, "fixture")) cfg$data$fixture_seed else NULL,
     csv_path = csv_path,
     csv_md5 = if (!is.na(csv_path) && file.exists(csv_path)) unname(tools::md5sum(csv_path)) else NA_character_
   )
@@ -72,6 +80,7 @@ data_request_signature <- function(cfg, root) {
 #' @export
 load_price_data <- function(cfg, root = pra_project_root(), force_refresh = NULL) {
   dirs <- ensure_project_dirs(root)
+  cache_enabled <- isTRUE(cfg$data$cache)
   force_refresh <- force_refresh %||% (cfg$data$force_refresh %||% FALSE)
   request_signature <- data_request_signature(cfg, root)
   key <- paste(gsub("[^A-Za-z0-9]", "_", cfg$profile), substr(stable_object_md5(request_signature), 1L, 16L), sep = "_")
@@ -94,7 +103,7 @@ load_price_data <- function(cfg, root = pra_project_root(), force_refresh = NULL
     if (!is.null(warning)) cached$metadata$warnings <- unique(c(cached$metadata$warnings, warning))
     cached
   }
-  if (!force_refresh && file.exists(cache_path)) {
+  if (cache_enabled && !force_refresh && file.exists(cache_path)) {
     return(use_cached(readRDS(cache_path)))
   }
   source <- cfg$data$source
@@ -109,15 +118,14 @@ load_price_data <- function(cfg, root = pra_project_root(), force_refresh = NULL
     metadata <- list(source = "csv", input = cfg$data$path)
   } else if (identical(source, "yahoo")) {
     if (!requireNamespace("quantmod", quietly = TRUE)) {
-      if (file.exists(cache_path)) {
+      if (cache_enabled && file.exists(cache_path)) {
         return(use_cached(readRDS(cache_path), "Refresh skipped because quantmod is unavailable; used matching cache."))
       }
       stop("Online Yahoo acquisition requires the optional `quantmod` package and no cache is available.", call. = FALSE)
     }
     downloads <- tryCatch(lapply(cfg$data$tickers, function(ticker) {
         x <- quantmod::getSymbols(ticker, src = "yahoo", from = cfg$data$start,
-                                 to = cfg$data$end, auto.assign = FALSE, warnings = FALSE)
-        if (identical(cfg$data$frequency, "weekly")) x <- xts::to.weekly(x, drop.time = TRUE)
+                                 to = as.Date(cfg$data$end) + 1L, auto.assign = FALSE, warnings = FALSE)
         field <- if (isTRUE(cfg$data$adjusted)) "adjusted" else "close"
         values <- if (field == "adjusted") {
           tryCatch(quantmod::Ad(x), error = function(e) {
@@ -133,7 +141,7 @@ load_price_data <- function(cfg, root = pra_project_root(), force_refresh = NULL
         )
       }), error = function(e) e)
     if (inherits(downloads, "error")) {
-      if (file.exists(cache_path)) {
+      if (cache_enabled && file.exists(cache_path)) {
         return(use_cached(readRDS(cache_path), sprintf("Refresh failed; used matching cache: %s", conditionMessage(downloads))))
       }
       stop(conditionMessage(downloads), call. = FALSE)
@@ -145,24 +153,44 @@ load_price_data <- function(cfg, root = pra_project_root(), force_refresh = NULL
   } else {
     stop(sprintf("Unsupported data source: %s", source), call. = FALSE)
   }
-  checked <- validate_prices(prices, cfg$data$min_observations)
-  aligned <- align_prices(checked$data, cfg$data$tickers)
-  date_range <- range(aligned$date)
   requested_start <- as.Date(cfg$data$start); requested_end <- as.Date(cfg$data$end)
-  if (date_range[2] < requested_start || date_range[1] > requested_end) {
-    stop("Downloaded data do not overlap the requested date range.", call. = FALSE)
+  if (!all(c("date", "ticker", "adjusted") %in% names(prices))) {
+    stop("Price input requires date, ticker, and adjusted columns.", call. = FALSE)
   }
+  prices$date <- as.Date(prices$date)
+  if (anyNA(prices$date)) stop("Price input contains invalid dates.", call. = FALSE)
+  prices <- prices[prices$ticker %in% cfg$data$tickers &
+                     prices$date >= requested_start & prices$date <= requested_end, , drop = FALSE]
+  checked <- validate_prices(prices, cfg$data$min_observations)
+  aligned <- align_prices(checked$data, cfg$data$tickers, frequency = cfg$data$frequency,
+                          start = requested_start, end = requested_end,
+                          max_stale_days = cfg$data$max_stale_days %||% 4L)
+  if (nrow(aligned) < cfg$data$min_observations) {
+    stop(sprintf("Only %d aligned %s observations remain; at least %d are required.",
+                 nrow(aligned), cfg$data$frequency, cfg$data$min_observations), call. = FALSE)
+  }
+  date_range <- range(aligned$date)
+  valuation_audit <- attr(aligned, "valuation_audit")
   metadata <- c(metadata, list(
     downloaded_at_utc = format(Sys.time(), tz = "UTC", usetz = TRUE),
     cache_hit = FALSE, date_min = as.character(date_range[1]),
     date_max = as.character(date_range[2]), warnings = checked$warnings,
     request_signature = request_signature,
+    input_hash = stable_object_md5(list(date = as.character(checked$data$date),
+                                      ticker = checked$data$ticker, adjusted = checked$data$adjusted)),
+    aligned_hash = stable_object_md5(aligned),
+    calendar = list(frequency = cfg$data$frequency,
+                    valuation_day = if (identical(cfg$data$frequency, "weekly")) "Friday" else "common_observed_date",
+                    policy = request_signature$calendar_policy,
+                    max_stale_days = cfg$data$max_stale_days %||% 4L,
+                    stale_quote_count = sum(valuation_audit$stale_days > 0L),
+                    maximum_quote_age = max(valuation_audit$stale_days)),
     raw_artifact = file.path("data", "raw", basename(raw_path)),
     processed_artifact = file.path("data", "processed", basename(processed_path))
   ))
-  result <- list(prices = checked$data, aligned = aligned, metadata = metadata)
+  result <- list(prices = checked$data, aligned = aligned, valuation_audit = valuation_audit, metadata = metadata)
   atomic_save_rds(checked$data, raw_path)
   atomic_save_rds(aligned, processed_path)
-  if (isTRUE(cfg$data$cache)) atomic_save_rds(result, cache_path)
+  if (cache_enabled) atomic_save_rds(result, cache_path)
   result
 }

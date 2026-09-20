@@ -17,5 +17,8 @@ diagnose_marginal(fit, lag = 10L, pit_epsilon = 1e-08)
 Named diagnostic list.
 }
 \description{
-Residual and PIT diagnostics
+PIT goodness-of-fit statistics and their conventional p-values are exploratory:
+the marginal parameters were estimated from the same observations, so ordinary
+KS/AD reference distributions do not calibrate these fitted-residual tests.
+A formal test requires a refit-aware bootstrap or separately validated forecasts.
 }

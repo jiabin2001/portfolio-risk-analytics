@@ -16,7 +16,8 @@ student_t_var_es(mean_return = 0, volatility = 1, df = 8, confidence = 0.99)
 \item{confidence}{Confidence level.}
 }
 \value{
-One-row data frame.
+One-row data frame with signed \code{loss_var}/\code{loss_es}, \code{return_quantile},
+and nonnegative display magnitudes \code{var}/\code{es}.
 }
 \description{
 The Student-t innovation is scaled to unit variance before applying \code{volatility}.

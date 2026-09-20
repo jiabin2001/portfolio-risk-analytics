@@ -25,5 +25,5 @@ log_event <- function(level, stage, message, run_id = "latest", root = pra_proje
 #' @param when Timestamp.
 #' @export
 make_run_id <- function(profile, when = Sys.time()) {
-  paste0(gsub("[^A-Za-z0-9_-]", "_", profile), "_", format(when, "%Y%m%dT%H%M%S"))
+  paste0(gsub("[^A-Za-z0-9_-]", "_", profile), "_", format(when, "%Y%m%dT%H%M%OS6", tz = "UTC"), "_", Sys.getpid())
 }

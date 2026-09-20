@@ -36,10 +36,12 @@ kupiec_test <- function(exceptions, confidence = 0.99) {
 #' @export
 exception_transitions <- function(exceptions) {
   e <- as.logical(exceptions)
-  e <- e[!is.na(e)]
   if (length(e) < 2L) return(c(n00 = 0L, n01 = 0L, n10 = 0L, n11 = 0L))
   previous <- e[-length(e)]
   current <- e[-1]
+  observed <- !is.na(previous) & !is.na(current)
+  previous <- previous[observed]
+  current <- current[observed]
   c(n00 = sum(!previous & !current), n01 = sum(!previous & current),
     n10 = sum(previous & !current), n11 = sum(previous & current))
 }
@@ -50,10 +52,13 @@ exception_transitions <- function(exceptions) {
 #' @export
 christoffersen_independence_test <- function(exceptions) {
   e <- as.logical(exceptions)
-  e <- e[!is.na(e)]
   cells <- exception_transitions(e)
-  if (length(e) < 3L) return(list(statistic = NA_real_, p_value = NA_real_, transitions = cells, status = "insufficient_data"))
+  if (sum(cells) < 2L) return(list(statistic = NA_real_, p_value = NA_real_, transitions = cells, status = "insufficient_data"))
   n00 <- cells[["n00"]]; n01 <- cells[["n01"]]; n10 <- cells[["n10"]]; n11 <- cells[["n11"]]
+  if ((n00 + n01) == 0L || (n10 + n11) == 0L) {
+    return(list(statistic = NA_real_, p_value = NA_real_, transitions = cells,
+                status = "insufficient_transition_states"))
+  }
   pi0 <- if ((n00 + n01) == 0) 0 else n01 / (n00 + n01)
   pi1 <- if ((n10 + n11) == 0) 0 else n11 / (n10 + n11)
   pi <- (n01 + n11) / sum(cells)
@@ -73,7 +78,9 @@ christoffersen_conditional_test <- function(exceptions, confidence = 0.99) {
   uc <- kupiec_test(exceptions, confidence)
   ind <- christoffersen_independence_test(exceptions)
   if (!identical(uc$status, "ok") || !identical(ind$status, "ok")) {
-    return(list(statistic = NA_real_, p_value = NA_real_, status = "insufficient_data", unconditional = uc, independence = ind))
+    return(list(statistic = NA_real_, p_value = NA_real_,
+                status = if (uc$status != "ok") uc$status else ind$status,
+                unconditional = uc, independence = ind))
   }
   statistic <- uc$statistic + ind$statistic
   list(statistic = statistic, p_value = stats::pchisq(statistic, 2, lower.tail = FALSE),
@@ -130,7 +137,9 @@ backtest_var <- function(realised_returns, var, confidence = 0.99) {
     exception_rate = mean(e, na.rm = TRUE), expected_exception_rate = 1 - confidence,
     kupiec_statistic = uc$statistic, kupiec_p_value = uc$p_value,
     independence_statistic = ind$statistic, independence_p_value = ind$p_value,
+    independence_status = ind$status, transition_pairs = sum(ind$transitions),
     conditional_coverage_statistic = cc$statistic, conditional_coverage_p_value = cc$p_value,
+    conditional_coverage_status = cc$status,
     mean_quantile_loss = mean(loss, na.rm = TRUE),
     coverage_status = coverage_traffic_light(cc$p_value, mean(e, na.rm = TRUE), 1 - confidence),
     stringsAsFactors = FALSE

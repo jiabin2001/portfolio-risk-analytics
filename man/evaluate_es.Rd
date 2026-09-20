@@ -9,14 +9,16 @@ evaluate_es(realised_returns, var, es, confidence = 0.99)
 \arguments{
 \item{realised_returns}{Signed realised returns.}
 
-\item{var}{Positive VaR forecasts.}
+\item{var}{Signed loss-scale VaR forecasts.}
 
-\item{es}{Positive ES forecasts.}
+\item{es}{Signed loss-scale ES forecasts.}
 
 \item{confidence}{Confidence level.}
 }
 \value{
 One-row descriptive summary. This is not labelled a formal ES test.
+\code{mean_joint_score} is unavailable if any otherwise valid observation is outside
+the positive-ES scoring domain; counts and status expose that limitation.
 }
 \description{
 Descriptive Expected Shortfall evaluation

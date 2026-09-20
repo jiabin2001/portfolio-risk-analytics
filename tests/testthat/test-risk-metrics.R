@@ -28,8 +28,10 @@ test_that("baseline models share a common forecast schema", {
   x <- rnorm(200, sd = 0.02)
   for (model in c("historical", "gaussian", "student_t", "ewma", "filtered_historical")) {
     fit <- forecast_baseline(x, model, 0.99)
-    expect_named(fit, c("model", "confidence", "return_quantile", "var", "es", "status",
+    expect_named(fit, c("model", "confidence", "return_quantile", "var", "es", "loss_var", "loss_es", "status",
                         "warnings", "runtime_seconds", "metadata"))
     expect_gte(fit$es, fit$var)
+    expect_equal(fit$return_quantile, -fit$loss_var)
+    expect_gte(fit$loss_es, fit$loss_var)
   }
 })
