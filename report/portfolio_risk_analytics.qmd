@@ -1,6 +1,7 @@
 ---
-title: "Portfolio Risk Analytics"
-subtitle: "Calendar-consistent forecasts and evidence against benchmark models"
+title: "Volatility and Dependence in Portfolio Tail-Risk Forecasting"
+subtitle: "A rolling out-of-sample study of copula-GARCH VaR and Expected Shortfall"
+bibliography: references.bib
 format:
   html:
     toc: true
@@ -65,19 +66,23 @@ oos_count <- length(forecast_dates)
 audit <- read_output("valuation_audit")
 ```
 
-# Research question and observed scope
+# Research question and empirical design
 
-Does conditional volatility improve portfolio risk forecasts over simple benchmarks,
-and does modelling cross-asset dependence add value once the marginal forecasts are held
-fixed? The tables below answer these as separate comparisons.
+Portfolio tail risk depends on both the evolution of individual asset volatility and
+the tendency of assets to experience losses together. This study evaluates their
+separate contributions to one-step Value-at-Risk (VaR) and Expected Shortfall (ES)
+forecasting. A univariate portfolio GARCH-t benchmark captures conditional volatility
+and heavy tails; copula models fitted to a common set of conditional marginals isolate
+the additional contribution of dependence.
 
-This report uses run **`r provenance_value("run_id")`**, profile
-**`r provenance_value("profile")`**, and source **`r provenance_value("data_source")`**.
-The input contains **`r provenance_value("observations")`** valuation observations from
+The sample from **`r provenance_value("data_source")`** contains
+**`r provenance_value("observations")`** valuation observations from
 **`r provenance_value("valuation_start")`** to **`r provenance_value("valuation_end")`**.
-The actual out-of-sample evaluation runs from **`r oos_start`** to **`r oos_end`** across
-**`r oos_count` distinct forecast dates** and **`r length(unique(rolling$model))` models**.
-Input history and evaluation history are different samples.
+The out-of-sample experiment covers **`r oos_start`** through **`r oos_end`**, with
+**`r oos_count` forecast dates** and **`r length(unique(rolling$model))` models**.
+The evaluation combines coverage tests, common-sample predictive losses, and paired
+uncertainty estimates. This distinguishes the size of an observed forecasting gain
+from the strength of the evidence supporting it.
 
 ```{r}
 #| results: asis
@@ -86,23 +91,24 @@ if (provenance_value("data_source") == "synthetic_fixture") {
 }
 ```
 
-The current estimate below is conditional on the last available valuation date; it is
-separate from the historical forecasts used to assess calibration and predictive loss.
-No model is declared superior from an in-sample fit, a coverage p-value, or a point rank.
+The table below gives the conditional risk estimate at the final valuation date.
+Historical rolling forecasts provide the evidence on calibration and predictive
+performance developed in the subsequent sections.
 
 ```{r}
 show_columns(read_output("current_copula_risk"),
   c("confidence", "loss_var", "loss_es", "var", "es", "tail_effective_observations"))
 ```
 
-# Valuation calendar and portfolio definition
+# Data and portfolio construction
 
-Weekly profiles use a shared Friday valuation calendar. For each asset, the input is
-its most recent quote dated on or before that Friday, within the permitted age limit.
-The quote date remains visible below: a Thursday market close can be used for a Friday
-holiday valuation without deleting that week. Future quotes, an entirely missing week,
-and excessive staleness are rejected. An unfinished final calendar week is excluded.
-Daily profiles use common observed trading dates.
+Weekly observations are formed on a shared Friday valuation calendar. Each asset is
+valued using its most recent quote available by the cutoff, subject to the configured
+quote-age limit. This convention accommodates differences in market holidays while
+maintaining a seven-day observation interval. The final sample includes complete
+calendar weeks with an admissible quote for every asset. The table records sample
+coverage and the age of the underlying quotes. Daily profiles use common observed
+trading dates.
 
 ```{r}
 calendar_summary <- do.call(rbind, lapply(split(audit, audit$ticker), function(x) {
@@ -118,37 +124,44 @@ knitr::kable(calendar_summary, row.names = FALSE)
 show_figure("asset_prices.png")
 ```
 
-The configured return space is **`r provenance_value("return_type")`** and the currency
-mode is **`r provenance_value("currency_mode")`**. Fixed weights apply to asset simple
-returns at each observation. Portfolio log return is `log1p(weighted_simple_return)`.
-Local-index-return mode combines abstract index return series and includes no FX
-conversion; it is not an investable base-currency portfolio. Maintaining fixed weights
-also implies rebalancing, whose costs are outside the current demonstration.
+The return convention is **`r provenance_value("return_type")`** and the currency mode
+is **`r provenance_value("currency_mode")`**. Asset simple returns are combined using
+fixed portfolio weights. Portfolio log return is `log1p(weighted_simple_return)`.
+Under the local-index-return convention, the portfolio combines index returns in their
+respective currencies. The experiment therefore measures joint index-return risk;
+FX exposure and the costs of maintaining fixed weights are outside its scope.
 
 For realised return $r$, signed loss is $L=-r$. The `loss_var` and `loss_es` columns retain
 the signed forecasts used for scoring, including negative risk estimates when the tail
 still earns a gain. The `var` and `es` columns are nonnegative display magnitudes only.
-VaR is a loss-quantile threshold, not a maximum loss. Empirical ES averages exactly the
-worst tail probability mass, with a fractional observation at the boundary when needed.
+VaR is a confidence-level loss quantile. Empirical ES integrates the worst tail
+probability mass, with a fractional observation at the boundary when needed.
 
-# Models and diagnostics
+# Volatility and dependence models
 
-Benchmarks include historical, Gaussian, Student-t, EWMA and filtered-historical risk,
-and, when configured, a fixed portfolio sGARCH(1,1) model with Student-t innovations
-(`garch_t`). The last benchmark tests whether a conditional volatility model fitted
-directly to portfolio returns can account for the apparent benefit of the larger system.
-The current benchmark estimates are shown separately from their out-of-sample scores.
+The benchmark set includes historical, Gaussian, Student-t, EWMA and
+filtered-historical forecasts. The portfolio sGARCH(1,1) model with Student-t
+innovations (`garch_t`), when included, provides a direct conditional-volatility
+alternative to the multivariate specification. Current estimates for the benchmark
+models are reported below.
 
 ```{r}
 show_columns(read_output("current_baseline_risk"),
   c("model", "confidence", "loss_var", "loss_es", "status"))
 ```
 
-Marginal selection screens convergence, parameter validity, and residual and squared
-residual autocorrelation before information-criterion ranking. A selected fallback that
-fails diagnostics remains visibly flagged. PIT goodness-of-fit p-values use fitted
-residuals and are exploratory; they do not provide calibrated uniformity tests and are
-not hard model-admission thresholds.
+For asset $i$, the conditional marginal model has the form
+$r_{i,t}=\mu_{i,t}+\sigma_{i,t}z_{i,t}$, with an ARMA conditional mean and a
+GARCH-family conditional variance. Candidate innovation distributions allow for
+heavy tails and asymmetry. Probability integral transforms of the standardized
+innovations provide the inputs to the dependence model.
+
+Marginal specification selection combines convergence and parameter checks,
+residual and squared-residual autocorrelation diagnostics, and information-criterion
+ranking. The selected specifications and screening results are reported below.
+Fallback selections carry their diagnostic status. PIT goodness-of-fit statistics
+provide descriptive checks on fitted residuals; their conventional p-values are
+exploratory because the marginal parameters are estimated from the same observations.
 
 ```{r}
 selection <- read_output("marginal_model_selection")
@@ -173,16 +186,25 @@ show_columns(read_output("copula_model_selection"),
 show_figure("copula_diagnostic.png")
 ```
 
-Copula coefficients use the return-CDF scale: lower-tail dependence concerns joint
-extreme losses, whereas upper-tail dependence concerns joint extreme gains. These
-coefficients describe the fitted model, and do not establish its predictive value.
+The copula links the conditional marginal distributions to form a joint return
+forecast, providing a framework for asymmetric dependence [@patton2006]. On the
+return-CDF scale, lower-tail dependence characterizes joint extreme
+losses and upper-tail dependence characterizes joint extreme gains. Joint simulated
+returns are aggregated in simple-return space and converted to the portfolio return
+convention before estimating VaR and ES. The fitted dependence coefficients describe
+the current joint distribution; their forecasting contribution is assessed out of sample.
 
-# Out-of-sample calibration and availability
+# Out-of-sample calibration
 
-Each forecast is fitted using observations through its training end and evaluated on
-the next valuation. Models are refitted at each origin; specification selection follows
-the configured schedule. Failures remain on the evaluation calendar, so independence
-tests do not join observations across a missing forecast.
+At each origin, estimation uses observations available through the training end and
+forecasts the next valuation. Parameters are refitted at every origin, while
+specification selection follows the configured schedule. Forecast availability is
+reported alongside the statistical results.
+
+Unconditional coverage evaluates whether the frequency of VaR exceptions matches
+the nominal tail probability [@kupiec1995]. Independence and conditional coverage
+also examine the sequence of exceptions [@christoffersen1998]. Transition counts
+use adjacent available forecasts on the evaluation calendar.
 
 ```{r}
 calibration <- comparison
@@ -196,51 +218,53 @@ show_columns(comparison, c("model", "confidence", "kupiec_p_value", "independenc
                           "independence_status", "transition_pairs", "conditional_coverage_p_value"), digits = 4)
 ```
 
-Expected exception counts show the information available for tail calibration. With
-few expected or observed exceptions, a large p-value has limited evidential value;
-failure to reject is not proof of an adequate model. Independence can be unidentified
-at boundary cases. The reported statuses and transition counts must be read alongside
-p-values. Descriptive ES exceedance residuals are not a formal ES hypothesis test.
+Expected exception counts indicate the effective information available for tail
+calibration. Coverage results are interpreted together with these counts, transition
+availability, and predictive losses. Small tail samples limit test power, and boundary
+cases can leave independence unidentified. ES exceedance residuals provide a
+complementary descriptive measure of tail forecast error.
 
 ```{r}
 show_figure("rolling_var_exceedances.png")
 ```
 
-# Predictive loss and dependence ablations
+# Predictive performance and dependence comparisons
 
-Quantile-loss ranks use dates for which every compared model has a valid VaR forecast.
-Joint VaR/ES ranks use a separate shared set of valid FZ0 scores. Their sample counts
-are displayed explicitly; model-specific losses are not silently ranked on different
-dates. Runtime and complexity remain operational information and are not mixed into
-a hand-weighted statistical score.
+Mean quantile loss evaluates the accuracy of VaR forecasts. Mean FZ0 evaluates VaR
+and ES jointly. Each score uses the dates shared by all eligible models at a given
+confidence level, with separate sample counts for the two scoring rules. Lower mean
+loss indicates better observed predictive performance, and ranks summarize that
+ordering. Estimation cost is considered separately.
 
 ```{r}
 show_columns(comparison, c("model", "confidence", "common_observations", "quantile_loss", "rank",
                           "joint_common_observations", "mean_joint_score", "joint_score_rank"), digits = 7)
 ```
 
-FZ0 jointly scores signed VaR and ES and requires strictly positive signed ES. Otherwise
-valid forecasts outside this score's domain are unavailable for FZ0, rather than clipped
-or assigned an artificial score. Lower mean scores are preferable on the same sample
-and at the same confidence level; negative FZ0 values are possible.
+FZ0 is defined for strictly positive signed ES and permits negative values of the
+score itself. Joint VaR/ES scoring provides the evaluation framework described by
+@pattonziegelchen2019. Forecasts outside this domain remain part of the availability accounting
+but do not enter the FZ0 comparison. Score levels are compared within the same
+confidence level and observation sample.
 
 ```{r}
 show_columns(comparison, c("model", "confidence", "joint_score_availability", "joint_score_status",
                           "tail_observations", "mean_exceedance_residual"), digits = 5)
 ```
 
-When configured, `copula_independence`, `copula_gaussian`, `copula_student` and
-`copula_bb1` reuse the **same conditional marginal forecasts** at each origin while
-changing the dependence family. `copula_garch` uses the selection procedure. Differences
-within this group address the contribution of dependence; differences against
-`garch_t` address the value of the full multivariate construction. A failed fixed-family
-fit is recorded as a failure, rather than substituted with another family.
+The dependence experiment holds the **conditional marginal forecasts fixed** at each
+origin and compares independence, Gaussian, Student-t and BB1 copulas. These appear
+as `copula_independence`, `copula_gaussian`, `copula_student` and `copula_bb1`.
+The `copula_garch` forecast applies the configured copula-selection procedure.
+Comparisons within this group isolate dependence assumptions, while comparison with
+`garch_t` measures the incremental value of the multivariate construction. Forecast
+availability includes any unsuccessful fixed-family fits.
 
 ```{r}
 show_figure("model_comparison.png")
 ```
 
-# Uncertainty in paired score differences
+# Paired evidence on incremental predictive value
 
 ```{r}
 predictive <- read_output("predictive_comparison")
@@ -334,12 +358,13 @@ plot_paired_uncertainty <- function(x) {
 plot_paired_uncertainty(predictive)
 ```
 
-Differences are **model minus reference**: negative values favour the model. The circular
-block bootstrap resamples paired score differences to retain local serial dependence.
-It reports percentile intervals and centred two-sided bootstrap p-values, with Holm
-adjustment across the comparisons in this run. The intervals themselves are marginal,
-not simultaneous. An interval containing zero does not resolve the direction of the
-difference, and a point rank does not establish superiority.
+The paired mean difference measures the observed forecasting gain relative to the
+reference model. Differences are **model minus reference**, so negative values favour
+the model. A circular block bootstrap retains local serial dependence in the paired
+scores and estimates uncertainty around their mean difference. The analysis reports
+marginal percentile intervals and centred two-sided bootstrap p-values, with Holm
+adjustment across the comparisons. The intervals are interpreted individually;
+the adjusted p-values address multiplicity across the experiment.
 
 ```{r}
 #| results: asis
@@ -375,11 +400,11 @@ show_columns(predictive, c("model", "reference_model", "confidence", "score_type
                           "p_value_holm", "status"), digits = 5)
 ```
 
-Comparisons use the same common date set across all models at a confidence level and
-score type. If that common set has internal calendar gaps, the mean difference remains
-visible but bootstrap inference is unavailable, rather than bridging those gaps.
-Insufficient samples also have an explicit unavailable status. Per-date paired scores
-and differences are retained in `predictive_scores.csv`.
+Each confidence-level and score comparison uses a common date set across all models.
+Inference is reported when that sample is sufficiently large and contiguous on the
+forecast calendar. The mean difference and availability remain informative when
+these conditions are unmet. Per-date paired scores in `predictive_scores.csv`
+allow individual periods and loss contributions to be examined.
 
 # Monte Carlo precision
 
@@ -397,21 +422,41 @@ if (!is.null(convergence)) {
 show_figure("monte_carlo_convergence.png")
 ```
 
-Across-seed variation measures simulation error conditional on the fitted model. It
-does not include uncertainty from estimated parameters, model selection, historical
-sample choice, or structural change. Simulation counts, seed and chunk size are recorded
-below; identical seeds alone do not guarantee identical results after changing chunk size.
+The repeated-seed experiment measures Monte Carlo variation conditional on the fitted
+model. Its convergence pattern helps assess whether the simulation budget is adequate
+for the reported risk estimates. Parameter estimation, model selection and structural
+change contribute additional uncertainty beyond this experiment. Reproduction uses
+the recorded draw count, seed and chunk size together.
 
-# Runtime, provenance and limitations
+# Computational cost
 
 ```{r}
 show_columns(comparison, c("model", "confidence", "runtime_seconds", "model_failures"), digits = 3)
 ```
 
-Runtime is elapsed wall-clock time, not CPU time. Copula ablations reuse marginal fits;
-their model-attributed times include that shared marginal cost, so summing model rows
-does not measure the runtime of the whole pipeline. Confidence-level rows may also
-share a fit or simulation.
+The timing table reports elapsed wall-clock time attributed to each model. The
+fixed-marginal copula comparisons share marginal estimation, and their attributed
+times include that common cost. Fits and simulations can also support several
+confidence levels. Pipeline runtime is therefore distinct from the sum of these rows.
+
+# Interpretation and scope
+
+The principal empirical question is whether multivariate modelling delivers enough
+predictive gain to justify its additional estimation and simulation cost. The paired
+means measure the magnitude of that gain relative to portfolio GARCH-t. Holding
+marginal forecasts fixed then identifies the role of dependence assumptions in the
+observed ordering of models. An improvement in average loss and uncertainty about its
+persistence can coexist; intervals spanning zero warrant further evaluation across
+samples and market regimes.
+
+The experiment covers a bivariate index portfolio with fixed weights. Its
+local-currency convention leaves FX risk, hedging and trading costs outside the
+portfolio definition. Sparse extreme losses constrain tail validation, while estimated
+marginal parameters and dependence structures add uncertainty beyond Monte Carlo
+variation. These boundaries guide the interpretation of the measured gains and the
+design of further comparisons.
+
+# Reproducibility
 
 ```{r}
 keys <- c("run_id", "profile", "git_commit", "source_dirty", "implementation_hash", "config_hash",
@@ -420,13 +465,14 @@ keys <- c("run_id", "profile", "git_commit", "source_dirty", "implementation_has
 knitr::kable(provenance[match(keys, provenance$key, nomatch = 0L), ], row.names = FALSE)
 ```
 
-The run archive retains its configuration, price snapshot and session information.
-The manifest records output hashes; this report checks them before reading the results.
-Package versions are listed in `run_provenance.csv`. A dependency lockfile fixes software
-versions, while the archived price snapshot fixes the market inputs for a repeat run.
+The experiment records its source revision, configuration, software environment and
+input identities. The run archive contains the price snapshot, configuration and
+session information; the output manifest connects these inputs to the generated tables
+and figures. Package versions are listed in `run_provenance.csv`. Repeating an
+experiment requires both its software environment and its historical input snapshot,
+since later provider downloads can revise the underlying data.
 
-This remains a bivariate research system. Local-index-return results omit FX and
-implementation costs. One observed historical evaluation period cannot establish
-performance in every market regime. Calendar correctness, common-sample scoring and
-recorded provenance make the experiment auditable; predictive superiority still requires
-adequate samples and stable evidence across independent comparisons.
+# References
+
+::: {#refs}
+:::

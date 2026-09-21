@@ -1,134 +1,112 @@
 # Portfolio Risk Analytics
 
-A reproducible **two-asset market-risk research framework** in R: conditional
-volatility, copula dependence, Monte Carlo VaR/ES, and rolling out-of-sample evaluation.
+**Volatility, dependence and portfolio tail risk**
 
-The research question is whether conditional volatility and asymmetric dependence
-improve forecasts enough to justify their complexity. Predictive losses and uncertainty
-are reported separately from runtime; a rank or large p-value is not proof of superiority.
+An empirical study of weekly Value-at-Risk (VaR) and Expected Shortfall (ES) for a
+UK–US equity portfolio. The project combines conditional volatility models,
+copula-based joint scenarios and rolling out-of-sample evaluation in R.
 
-## New in v0.2
+The central question is whether modelling dependence between asset returns improves
+portfolio tail-risk forecasts beyond a univariate volatility model.
 
-- Shared Friday valuations preserve cross-market holiday weeks, with source quote
-  dates, staleness checks, and explicit rejection of missing weeks.
-- Exact empirical ES handles ties and fractional tail probability. Signed risk
-  estimates are retained for statistical scoring.
-- Common-date VaR/ES comparisons preserve missing observations in transition tests
-  and report forecast availability separately.
-- A portfolio **GARCH-t benchmark** and **fixed-marginal copula ablations** distinguish
-  volatility modelling from dependence modelling.
-- Paired circular-block bootstrap intervals, centred bootstrap p-values, and Holm
-  adjustment accompany predictive loss differences.
-- Input snapshots, content-aware caches, source/config hashes, and output checksums
-  support reproducibility and auditing.
+[Findings](docs/RESULTS.md) · [Methodology](vignettes/methodology.qmd) ·
+[Reproduction](docs/REPRODUCIBILITY.md) · [Research report](report/portfolio_risk_analytics.qmd)
 
-The v0.1 results are superseded: exact-date intersections omitted some holiday weeks,
-so their estimates and ranks should not be interpreted as validated weekly results.
+## Study design
 
-## Run
+| Component | Specification |
+| --- | --- |
+| Portfolio | Equal-weight FTSE 100 and S&P 500 local-index returns |
+| Data | 1,356 weekly valuations, January 2000–December 2025 |
+| Forecast horizon | One week; VaR and ES at 95% and 99% confidence |
+| Evaluation | 520 forecast dates, 15 January 2016–26 December 2025 |
+| Estimation | A moving 520-week window; specifications reselected every 65 weeks |
+| Comparison | 11 models, scored on the same out-of-sample dates |
 
-Use **R 4.5.1** to reproduce the checked environment. The package declares R >= 4.2,
-but the full dependency lock includes packages requiring R >= 4.4.
+The model estimates each index's conditional return distribution with ARMA–GARCH,
+transforms residuals to uniform margins, and fits a bivariate copula. Joint simulations
+are mapped back to asset returns and aggregated into portfolio losses.
 
-```r
-install.packages("renv")
-renv::restore()
-source("scripts/run_tests.R")
-source("scripts/run_smoke_test.R")
-source("scripts/run_validation.R")
-source("scripts/run_full_analysis.R")
+Three comparisons give the experiment its structure:
+
+- **Volatility:** historical, Gaussian, Student-t, EWMA and filtered-historical
+  forecasts provide benchmarks alongside a portfolio GARCH-t model.
+- **Dependence:** independence, Gaussian, Student-t and BB1 copulas share the same
+  fitted asset marginals, isolating the effect of the dependence assumption.
+- **Predictive value:** quantile loss and a joint VaR/ES score measure forecast
+  accuracy; coverage tests and paired block-bootstrap intervals describe calibration
+  and uncertainty.
+
+## Findings
+
+Copula-GARCH produces lower average forecast losses than portfolio GARCH-t in this
+sample. The observed VaR improvements are:
+
+| VaR confidence | GARCH-t quantile loss | Copula-GARCH quantile loss | Reduction |
+| --- | ---: | ---: | ---: |
+| 95% | 0.002420 | 0.002369 | **2.12%** |
+| 99% | 0.000815 | 0.000760 | **6.80%** |
+
+Joint VaR/ES scores also favour copula-GARCH in the sample. The corresponding 95%
+intervals for all four score differences span zero, leaving the size and persistence
+of the advantage uncertain. The [results note](docs/RESULTS.md) reports effect sizes,
+intervals and the complete comparison design.
+
+Dependence assumptions affect the observed calibration: at the 99% level, the
+independence ablation records 15 exceptions in 520 weeks, compared with four for
+copula-GARCH. Gaussian and Student-t copulas are competitive with the selected-family
+model, making the choice of dependence structure a substantive part of the study.
+
+![Weekly portfolio returns and rolling 99% copula-GARCH VaR thresholds](outputs/figures/rolling_var_exceedances.png)
+
+*One-week-ahead forecasts across the evaluation period. Each forecast uses only
+information available before its forecast date.*
+
+## Reproduce the study
+
+Use **R 4.5.1** and **Quarto**. From the repository root:
+
+```sh
+Rscript -e "install.packages('renv'); renv::restore()"
+Rscript scripts/run_full_analysis.R
 ```
 
-Verify the committed results without restoring packages or downloading data:
+The full profile downloads or reuses cached market data, fits the models, runs the
+rolling experiment and renders `report/portfolio_risk_analytics.html`. Its settings
+are in [config/full.yml](config/full.yml).
+
+The committed CSV tables and figures can also be inspected without fitting models.
+Their integrity check requires only base R:
 
 ```sh
 Rscript --vanilla scripts/audit_outputs.R
 ```
 
-Smoke uses explicitly synthetic fixtures. Validation and full profiles use real Yahoo
-data cached locally. Full models require the locked `rugarch` and `VineCopula` packages.
-Quarto is needed for the final HTML report; a portable executable may be placed under
-`tools/`. CSV and PNG outputs remain usable without rendering.
+For installation details, an offline smoke run, tests and the `targets` workflow,
+see [Reproduction](docs/REPRODUCIBILITY.md).
 
-## Experiment
+## Research materials
 
-`config/full.yml` uses 50/50 FTSE/S&P 500 local-index returns, a compact ARMA-GARCH grid,
-100,000 current-risk draws, 10,000 rolling draws, a 520-observation moving estimation
-window, and 520 evaluation dates including the 2020 market shock.
+| Material | Contents |
+| --- | --- |
+| [Results](docs/RESULTS.md) | Forecast losses, calibration, dependence comparisons and uncertainty |
+| [Methodology](vignettes/methodology.qmd) | Return construction, model specification and scoring conventions |
+| [Report](report/portfolio_risk_analytics.qmd) | Executable analysis with tables, diagnostics and figures |
+| [Output tables](outputs/tables) | Per-date forecasts, paired scores, valuation audit and run provenance |
+| [R source](R) | Data, marginal models, copulas, simulation and forecast evaluation |
+| [Tests](tests/testthat) | Numerical checks and pipeline regression coverage |
 
-Benchmarks: historical, Gaussian, Student-t, EWMA, filtered historical, and univariate
-portfolio GARCH-t. The copula-GARCH model periodically reselects specifications and
-refits every origin. Independence/Gaussian/Student/BB1 ablations reuse the same
-conditional marginal fits at each origin, isolating dependence assumptions.
+## Scope
 
-Evaluation reports full-calendar availability and coverage, common-date quantile and
-joint VaR/ES (FZ0) scores, and paired differences against GARCH-t. Bootstrap intervals
-are marginal, depend on serial-dependence/block-length assumptions, and do not correct
-for hyperparameter tuning on the holdout. There is no arbitrary composite accuracy,
-runtime and complexity ranking. Loss ranks describe this sample only.
+The study concerns a bivariate, weekly, equal-weight portfolio of local-currency
+index returns. FX conversion, transaction costs and a holdings ledger are outside
+the experiment. Inference is conditional on the observed historical period and the
+chosen model set; 520 weekly forecasts provide limited information about rare tail
+events. Data conventions and inference assumptions are set out in the methodology.
 
-## Generated evidence
+## Methodological background
 
-The validated run covers **520 weekly forecast dates (2016-01-15 to 2025-12-26)**:
-11 models, two confidence levels and **11,440 successful forecast rows**.
-Copula-GARCH's observed quantile losses are 2.12% and 6.80% lower than GARCH-t at
-95% and 99% confidence. However, all four quantile/FZ0 loss-difference intervals
-cross zero, with Holm-adjusted p-values of 1. This experiment does **not establish
-incremental predictive value over GARCH-t**. See [STATUS.md](STATUS.md) for the
-numerical evidence and validation record.
+- Patton (2006), [Modelling Asymmetric Exchange Rate Dependence](https://public.econ.duke.edu/~ap172/Patton_IER_2006.pdf).
+- Patton, Ziegel and Chen (2019), [Dynamic Semiparametric Models for Expected Shortfall (and Value-at-Risk)](https://public.econ.duke.edu/~ap172/Patton_Ziegel_Chen_JoE_2019.pdf).
 
-![Rolling 99% VaR](outputs/figures/rolling_var_exceedances.png)
-
-![Common-date forecast comparison](outputs/figures/model_comparison.png)
-
-Key tables under `outputs/tables/`:
-
-- `model_comparison.csv`: coverage, availability and common-date VaR/ES scores.
-- `predictive_comparison.csv`: paired differences, bootstrap intervals and adjusted p-values.
-- `predictive_scores.csv`: per-date model/reference scores and differences.
-- `valuation_audit.csv`: valuation cutoffs, actual quote dates and staleness.
-- `run_provenance.csv`: source revision, exact sample, settings and dependency versions.
-- `output_manifest.csv`: output checksums and sizes.
-
-`STATUS.md` records completed validation. Each run also archives its frozen price
-snapshot, YAML, session information, tables and figures under ignored
-`outputs/runs/<run_id>/`. Full raw downloads and binary snapshots remain local;
-the committed valuation audit includes the weekly prices and their quote dates.
-Generated CSV bytes are preserved in Git so manifest checksums survive checkout.
-Re-downloading historical data can change results; `renv.lock` freezes software,
-not market data.
-
-## Conventions and limitations
-
-- Negative returns are losses. `loss_var/loss_es` are signed loss-scale estimates used
-  for scoring; `var/es` are nonnegative display magnitudes. VaR is a quantile, not a
-  maximum loss. ES averages the exact worst tail probability mass.
-- Asset log returns are converted to simple returns before portfolio weighting and
-  then back to the configured return space. Weights reset each observation; costs
-  and a holdings-based rebalancing ledger are not modelled.
-- The example combines **local-currency index returns**, not an investable GBP
-  portfolio. The currency helper accepts aligned FX returns; runners do not acquire FX.
-- Copulas are bivariate. Native fallbacks cover fewer models and support offline
-  verification; they are not interchangeable with the production likelihood engine.
-- Fitted-sample PIT KS/AD p-values are exploratory and do not gate model admission.
-  Residual diagnostics remain screening heuristics, not proof of model correctness.
-- FZ0 requires positive signed loss ES. Unscorable observations are counted explicitly.
-  Comparative scoring is not a formal standalone ES calibration test. Even 520 dates
-  provide limited information about rare 99% exceptions.
-
-## Structure
-
-```text
-R/                 data, modelling, simulation, evaluation and reporting
-config/            smoke, validation and full experiment profiles
-scripts/           runnable entry points
-tests/testthat/    regression and numerical validation tests
-report/            generated Quarto report
-vignettes/         methodology
-outputs/           committed results and ignored runtime artefacts
-```
-
-`_targets.R` tracks configuration, local-input content, generated files and report
-dependencies. Set `PRA_CONFIG` before `targets::tar_make()` to choose a profile.
-
-MIT. See [LICENSE.md](LICENSE.md).
+MIT licensed. See [LICENSE.md](LICENSE.md) and [Contributing](CONTRIBUTING.md).

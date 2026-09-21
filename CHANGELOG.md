@@ -1,39 +1,30 @@
 # Changelog
 
-## 0.2.0 - 2026-09-21
+This file records software and experiment-design changes. The research narrative
+and numerical findings are maintained in [README.md](README.md) and
+[Results](docs/RESULTS.md).
 
-- Preserve holiday weeks on shared Friday valuations; audit quote ages and enforce
-  CSV date/frequency settings.
-- Compute exact empirical ES tail mass and preserve signed statistical risk values.
-- Compare losses on common dates, preserve missing transition gaps, and expose
-  unidentifiable tests and FZ0-domain exclusions.
-- Add portfolio GARCH-t, shared-marginal copula ablations, paired block-bootstrap
-  intervals and multiplicity-adjusted comparative p-values.
-- Treat fitted-sample PIT goodness-of-fit p-values as exploratory diagnostics.
-- Strengthen cache/checkpoint identities and recovery; support empty baselines and
-  correct realised simple-return rolling aggregation.
-- Archive inputs and provenance, checksum outputs, and repair targets dependencies.
-- Preserve generated CSV bytes across Git checkouts and audit committed artifacts in CI.
-- Supersede irregular-horizon v0.1 results; replace heuristic composite ranking with
-  separate predictive scores and runtime reporting.
+## 0.2.0 — 2026-09-21
 
-## 0.1.1 - Previous review hardening
+- A shared Friday valuation calendar with quote-date and staleness auditing.
+- Exact empirical Expected Shortfall and signed loss-scale risk estimates.
+- Common-date forecast scoring, missing-observation accounting and recoverable checkpoints.
+- A portfolio GARCH-t benchmark and fixed-marginal copula experiments.
+- Paired block-bootstrap score comparisons with marginal intervals and Holm adjustment.
+- Input snapshots, run provenance, output integrity checks and an executable research report.
+- A 520-date evaluation of 11 models at two confidence levels.
 
-- Keep simulated portfolio risk and realised rolling returns in the configured return
-  space, and enforce the configured short-selling policy during simulation.
-- Repair native copula fallback selection, convergence reporting, and failed-fit
-  accounting.
-- Key data caches by the complete request identity and make adjusted-price fallbacks
-  explicit instead of silently substituting close prices.
-- Make rolling checkpoints schema- and input-aware, retry failures on resume, and retain
-  selection state so resumed runs reproduce uninterrupted schedules.
-- Add complete configuration validation, exact Student-t eGARCH centring, preserved RNG
-  state, collision-safe atomic writes, and robust diagnostic handling.
-- Remove duplicate targets orchestration in favour of the tested pipeline and add
-  regression coverage for the reviewed failure paths.
+Earlier weekly results used intersections of exact quote dates, which could omit
+holiday weeks. The current findings use a common valuation calendar and a different
+evaluation design; historical ranks should not be treated as directly comparable.
 
-## 0.1.0 - 2026-07-18
+## 0.1.1
 
-- Initial independent package architecture.
-- Added configurable data, modelling, simulation, and backtesting modules.
-- Added network-free tests and smoke-analysis orchestration.
+- Consistent return-space handling and configured short-selling policy.
+- Numerical checks, explicit model-failure accounting and copula fallback handling.
+- Configuration-aware caching, resumable forecasts and random-state isolation.
+
+## 0.1.0 — 2026-07-18
+
+- Initial R package structure, data pipeline and model implementations.
+- Rolling portfolio-risk forecasts, benchmark evaluation and Quarto reporting.

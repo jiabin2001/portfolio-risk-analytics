@@ -1,136 +1,188 @@
 ---
-title: "Methodology and Conventions"
+title: "Statistical Methods and Experimental Design"
 format: html
+bibliography: ../report/references.bib
 ---
 
-## Observation calendar
+## Research design
 
-Daily source prices are filtered to the configured inclusive date range and asset set
-before validation. Weekly profiles use one Friday valuation calendar for all assets.
-For each cutoff the last quote dated on or before that Friday is used, with a maximum
-configured age of zero to four calendar days. A missing whole week is an error; the
-engine never compresses two weeks into one return or uses a future quote. A trailing
-week whose Friday falls after the configured end is excluded. Daily profiles retain
-common observed trading dates.
+The study examines two potential sources of improvement in portfolio tail-risk
+forecasting: conditional volatility and cross-asset dependence. Direct portfolio
+benchmarks establish the performance of simpler forecasts, including a univariate
+GARCH-t model. Copula comparisons then hold the conditional marginal forecasts fixed
+and vary the dependence specification. Rolling out-of-sample evaluation measures
+both tail calibration and predictive loss.
 
-The valuation audit records each cutoff, asset, quote date, quote age and price. Weekly
-valuation labels are exactly seven days apart, even when individual markets close on
-different holidays. This is a daily-close convention, not an intraday synchronization
-model. Synthetic fixtures use Friday dates and are explicitly labelled as software
-verification inputs.
+## Data and valuation calendar
 
-## Portfolio returns and signed risk
+Daily source prices are restricted to the configured inclusive date range and asset
+set. Weekly observations use a common Friday valuation calendar. Each asset is valued
+at its latest quote available by the cutoff, with a maximum configured age of zero
+to four calendar days. Admissible weekly observations therefore contain a quote from
+the same calendar week for every asset. The sample ends with the last complete week;
+daily profiles instead use common observed trading dates.
 
-Portfolio simple return is the weighted sum of asset simple returns. Portfolio log
-return is `log1p(portfolio_simple_return)`; weighted asset log returns are not substituted
-for it. Forecasts and observations use the same configured return space. Fixed weights
-imply rebalancing at each observation, with trading costs outside the present model.
-Local-index-return mode performs no FX conversion. Base-currency mode requires aligned
-FX returns quoted as base-currency units per unit of asset currency.
+The valuation audit records each cutoff, asset, quote date, quote age and price.
+Weekly valuation dates are exactly seven days apart, while quote ages accommodate
+differences in market holidays. This construction represents daily closing-price
+information rather than intraday synchronization. Synthetic fixtures use Friday
+dates and support software verification separately from the empirical experiment.
 
-For signed return $r$, define loss $L=-r$. At confidence $c$, VaR is the $c$ quantile of
-loss, and ES averages the worst $1-c$ probability mass. The signed outputs `loss_var`
-and `loss_es` are used for scoring and exceptions. They can be negative if even the
-relevant tail earns a gain. The nonnegative `var` and `es` fields are display magnitudes
-and do not replace signed forecasts in evaluation.
+## Portfolio returns and tail-risk measures
 
-For empirical ES, losses are sorted from largest to smallest. The largest
+Let $R_{i,t}$ denote the simple return on asset $i$ and $w_i$ its fixed weight.
+Portfolio simple return is $R_{p,t}=\sum_i w_i R_{i,t}$, and portfolio log return is
+$\log(1+R_{p,t})$. Both simulated and observed portfolio returns use this aggregation
+and the same configured return convention. Maintaining fixed weights implies
+rebalancing at each observation; the experiment abstracts from trading costs.
+
+Under the local-index-return convention, each index contributes its local-currency
+return. A base-currency specification instead requires aligned FX returns quoted as
+base-currency units per unit of asset currency.
+
+For signed portfolio return $r$, define loss $L=-r$. At confidence $c$, VaR is the
+$c$ quantile of loss, and ES averages the worst $1-c$ probability mass. The signed
+outputs `loss_var` and `loss_es` enter scoring and exception calculations. They may
+be negative when the relevant tail still earns a gain. The `var` and `es` columns
+present their nonnegative display magnitudes.
+
+For empirical ES, losses are ordered from largest to smallest. The largest
 $\lfloor n(1-c)\rfloor$ observations receive full weight, and the next receives the
-fractional remainder. Dividing their weighted sum by $n(1-c)$ integrates exactly the
-tail mass, including samples with ties and samples smaller than $1/(1-c)$. A strict
-threshold subset is not used to approximate this integral.
+fractional remainder. Dividing their weighted sum by $n(1-c)$ gives the average over
+exactly the desired tail mass. The definition applies to samples with tied values
+and to samples smaller than $1/(1-c)$.
 
-## Marginals, dependence and benchmark design
+## Conditional marginals and dependence
 
-Marginal fits must converge and satisfy parameter checks. Residual and squared-residual
-Ljung–Box diagnostics screen autocorrelation before AIC/BIC ranking. If no candidate
-passes all diagnostic screens, the best valid converged fallback is selected with a
-warning. PIT KS/AD statistics and conventional p-values remain exploratory because
-the same observations estimated the marginal parameters. A calibrated PIT test would
-require a refit-aware bootstrap or an independently validated forecast sample.
+Asset returns are represented as
+$r_{i,t}=\mu_{i,t}+\sigma_{i,t}z_{i,t}$, combining an ARMA conditional mean with a
+GARCH-family conditional variance and a selected innovation distribution. Marginal
+specification selection combines convergence and parameter checks, residual and
+squared-residual Ljung–Box diagnostics, and AIC/BIC ranking. When no candidate passes
+every diagnostic screen, the best valid converged specification is retained with
+its fallback status.
 
-The native two-step marginal engine is an approximation; its information criteria
-are compared only within the restricted ARMA order. Production-package and native
-engine identities are retained in the outputs. PIT values are clipped inside $(0,1)$
-for numerical inverse-CDF evaluation, with clipping counts retained in diagnostics.
+Probability integral transforms map standardized innovations into marginal uniforms.
+PIT KS/AD statistics describe the fitted residual distributions. Their conventional
+p-values are exploratory because the marginal parameters are estimated from the
+same observations; calibrated inference would require a refit-aware bootstrap or
+an independently validated forecast sample. Values are clipped inside $(0,1)$ for
+numerical inverse-CDF evaluation, and clipping counts are recorded.
 
-Copula tail coefficients use the return-CDF scale. Lower-tail dependence concerns
-joint extreme losses, and upper-tail dependence concerns joint extreme gains.
-Simulation transforms joint uniforms through the fitted marginals, restores their
-conditional means and volatilities, and aggregates in simple-return space before
-converting to the configured portfolio return space.
+The conditional copula combines these marginals into a joint forecast. This
+decomposition permits volatility and marginal tail behaviour to be studied separately
+from dependence, including asymmetric dependence [@patton2006]. Copula coefficients
+are interpreted on the return-CDF scale: lower-tail dependence concerns joint extreme
+losses, while upper-tail dependence concerns joint extreme gains.
 
-Simple benchmarks are supplemented by a fixed univariate portfolio sGARCH(1,1)
-Student-t model. Optional independence, Gaussian, Student-t and BB1 ablations reuse
-the same selected and refitted asset marginals at each origin. This separates evidence
-about dependence from improvements due to conditional volatility or heavy tails.
-A fixed-family ablation that cannot fit is a recorded failure, not a different copula.
+Joint uniforms are transformed through the marginal inverse CDFs, conditional means
+and volatilities are restored, and asset returns are aggregated in simple-return
+space. Portfolio risk is then evaluated in the configured return space.
 
-## Rolling evaluation and missing forecasts
+The native two-step marginal implementation provides a computational approximation.
+Its information-criterion comparisons are restricted to the selected ARMA order.
+The outputs identify the estimation engine, allowing this approximation to be
+distinguished from the joint-likelihood production-package fits.
 
-At origin $t$, only observations through $t$ are available; the forecast is scored on
-the next valuation. Moving or expanding windows and periodic specification selection
-are explicit configuration choices. Selected specifications are refitted at every
-origin. Checkpoints include input, configuration and implementation identities so that
-incompatible states cannot be silently resumed.
+## Benchmarks and dependence comparisons
 
-Forecast-date/model/confidence keys must be unique, and compared models must have the
-same realised return for a given date. Failed and missing forecasts remain visible.
-Coverage describes the available observations on each model's full forecast calendar;
-independence transitions are not bridged across missing forecasts. An unidentified
-boundary-case independence statistic is not represented as proof of independence.
+The benchmark set covers historical, Gaussian, Student-t, EWMA and
+filtered-historical forecasts. A fixed univariate portfolio sGARCH(1,1) model with
+Student-t innovations provides a conditional-volatility reference.
 
-Quantile loss compares signed VaR forecasts. Ranking uses a common set of dates with
-valid scores for every model at the same confidence level. Joint VaR/ES scores use
-their own common set, with counts and availability reported separately. The rank is
-an ordering of observed mean losses, not a hypothesis test or a composite of p-values,
-complexity and runtime.
+The dependence experiment compares independence, Gaussian, Student-t and BB1 copulas
+using the same selected and refitted marginal forecasts at each origin. The main
+copula-GARCH procedure selects its dependence family according to the configured
+criterion. Comparing these forecasts isolates dependence assumptions, while the
+comparison with portfolio GARCH-t measures the value of the full multivariate
+construction. Unsuccessful fixed-family fits remain part of forecast-availability
+accounting.
 
-## Expected Shortfall scoring and uncertainty
+## Rolling forecasts and calibration
 
-The implemented Fissler–Ziegel zero-homogeneous score is
+At origin $t$, estimation uses observations through $t$ and the forecast is evaluated
+on the next valuation. Moving or expanding estimation windows and the specification
+selection schedule are configuration choices. Selected specifications are refitted
+at every origin.
+
+Coverage statistics describe each model's available forecasts on the evaluation
+calendar. The unconditional coverage test examines the exception frequency relative
+to the nominal tail probability [@kupiec1995]. Independence and conditional coverage
+also examine the ordering of exceptions [@christoffersen1998]. Transition counts use
+adjacent available forecasts; an intervening missing forecast leaves a gap.
+Boundary cases can leave independence unidentified.
+
+Forecast-date, model and confidence-level combinations uniquely identify a forecast,
+and all models share the realised return at a given date. Availability and failed
+forecasts are reported together with calibration. Sparse expected tail exceptions
+limit coverage-test power, so coverage results are interpreted alongside predictive
+scores.
+
+## Predictive loss and Expected Shortfall scoring
+
+Quantile loss evaluates signed VaR forecasts. Each confidence-level comparison uses
+the dates with valid scores for every included model. Mean joint VaR/ES scores use
+their own common set, with sample counts and availability reported separately.
+Ranks describe the ordering of observed mean losses.
+
+Joint scoring assesses VaR and ES as a pair, following the evaluation framework
+discussed by @pattonziegelchen2019. The implemented Fissler–Ziegel zero-homogeneous
+score is
 
 $$
 S(L,v,e)=\frac{\max(L-v,0)}{(1-c)e}+\frac{v}{e}+\log(e)-1,
 \qquad e>0,\quad e\geq v.
 $$
 
-Lower is better when comparing forecasts on the same observations and confidence
-level. Signed VaR may be negative. A valid forecast whose signed ES is nonpositive
-is outside this particular score's domain and receives an unavailable score; the
-forecast itself is neither clipped nor silently reclassified. Descriptive tail
-residuals are also reported, but they are not a formal ES hypothesis test.
+Lower mean scores indicate better observed forecasts on the same sample and at the
+same confidence level. Signed VaR may be negative. The positive-ES domain determines
+which forecasts enter FZ0 comparisons: otherwise valid forecasts with nonpositive
+signed ES have unavailable FZ0 scores. Descriptive tail residuals provide an
+additional view of forecast errors conditional on exceedance; they are not a formal
+ES hypothesis test.
 
-Paired predictive comparisons share the eligible dates across all models at each
-confidence level and score type. Loss differences are model minus reference, so
-negative values favour the model. A circular block bootstrap, using blocks of
-$\lceil n^{1/3}\rceil$ observations by default, reports a percentile interval and a
-centred two-sided bootstrap p-value. Holm adjustment applies across the comparisons
-in the call; percentile intervals remain marginal rather than simultaneous.
+## Paired inference and simulation precision
 
-Inference requires at least 20 paired observations and at least two blocks. Internal
-gaps in the common calendar make bootstrap inference unavailable rather than allowing
-resampled blocks to bridge missing forecasts. The point difference, common-sample
-fraction and inference status remain visible, and per-date score differences are saved.
-A point improvement, especially with an interval crossing zero, is not established
-superiority. Coverage tests also have limited power when the expected number of tail
-exceptions is small. Evaluation-period selection and multiple comparisons limit how
-broadly any favourable result can be interpreted.
+Paired comparisons use the same eligible dates across all models at each confidence
+level and score type. Loss differences are model minus reference, so a negative
+mean measures an observed predictive gain. A circular block bootstrap, with
+$\lceil n^{1/3}\rceil$ observations per block by default, estimates uncertainty while
+retaining local serial dependence. It reports a marginal percentile interval and a
+centred two-sided bootstrap p-value. Holm adjustment applies across all comparisons
+in the call; the percentile intervals remain marginal rather than simultaneous.
 
-Monte Carlo repeats across seeds estimate simulation error conditional on fitted
-parameters. They do not quantify parameter, model-selection or regime uncertainty.
-The seed, simulation budget, RNG kind and chunk size are part of the run identity.
+Inference requires at least 20 paired observations and at least two blocks. It is
+reported for a contiguous common forecast sample. When internal calendar gaps or
+limited observations preclude inference, the mean difference, sample fraction and
+status remain available. Per-date score differences support examination of the
+periods contributing to an aggregate gain or loss.
 
-## Reproduction and interpretation
+The magnitude of a mean loss reduction and its sampling uncertainty answer distinct
+questions. An interval spanning zero leaves uncertainty about the persistence of
+the observed gain. Evaluation-period selection, model selection and multiple
+comparisons also affect how broadly a favourable result can be interpreted.
 
-Each run records source revision and dirty state, implementation/configuration/input
-hashes, the valuation interval, software versions and simulation settings. A local
-run archive retains the price snapshot, configuration and session information.
-Output hashes tie generated tables and figures to their manifest; the report refuses
-to combine absent or mismatched artefacts.
+Repeated Monte Carlo seeds estimate simulation variation conditional on the fitted
+parameters. They help assess the adequacy of the simulation budget, while parameter,
+specification and regime uncertainty require separate analysis. Reproduction uses
+the recorded seed, RNG kind, draw count and chunk size together.
 
-Software tests establish implemented invariants, while real-data out-of-sample
-experiments assess forecast behaviour. Neither is sufficient on its own to establish
-an investable production risk system. This demonstration remains bivariate, and its
-default local-index-return example omits FX hedging, transaction costs and market
-microstructure effects.
+## Reproducibility and scope
+
+The experiment records source and configuration identities, input hashes, valuation
+coverage, software versions and simulation settings. The local run archive contains
+the price snapshot, configuration and session information. Checkpoint identities
+also include the implementation, allowing a resumed experiment to retain its
+estimation design. Output hashes connect the generated tables and figures to a
+single recorded experiment.
+
+The empirical design is bivariate and uses a fixed-weight index portfolio. Its
+default local-index-return convention excludes FX hedging, transaction costs and
+market microstructure effects. Results describe the observed out-of-sample period;
+additional portfolios and market regimes provide further tests of the stability
+and practical value of the measured forecasting gains.
+
+## References
+
+::: {#refs}
+:::

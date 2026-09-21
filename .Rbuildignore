@@ -9,9 +9,8 @@
 ^CONTRIBUTING\.md$
 ^LICENSE\.md$
 ^README\.md$
-^REFACTOR_PLAN\.md$
-^STATUS\.md$
 ^config$
+^docs$
 ^data$
 ^outputs$
 ^renv$
